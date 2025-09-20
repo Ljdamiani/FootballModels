@@ -5,58 +5,59 @@
 ## Dados do WorldFootball  ##
 
 #######################################################################
-# devtools::install_github("JaseZiv/worldfootballR")
+# devtools::install_github("JaseZiv/worldfootballR") # nolint
 
 library(worldfootballR)
 library(dplyr)
 library(lubridate)
+library(purrr)
+library(stringr)
+library(rvest)
+library(progress)
 
-# Temporadas da Premier League - Desde 2010
-seasons = c()
-last_season = year(today())
+# Funções (worldoffootball modificada)
+source("dados/aux_get_data.R")
+seasons = 2020:2025
+campeonatos = c("ENG", "ESP", "ITA", "FRA", "GER", "BRA")
+df <- expand.grid(season = seasons, campeonato = campeonatos)
+stats <- c("summary", "passing", "passing_types", "defense" , "possession", "misc", "keeper")
 
-for (i in 2010:last_season){
+
+# TODO: OLHAR OS DE BAIXO
+# - ENG 2023
+
+# Loop
+for (i in 17:nrow(df)){
   
-  # Temporadas
-  season <- fb_match_results("ENG", gender = "M", season_end_year = as.character(i))
+  # Infos
+  season <- df$season[i]
+  comp <- df$campeonato[i]
+  cat("\n\n")
+  cat(paste0(i, " de ", nrow(df), " - ", comp, " ", season))
+  cat("\n\n")
+  urls <- fb_match_urls(comp, gender = "M", season_end_year = as.character(season), tier = "1st")
+  pb <- progress::progress_bar$new(total = length(urls))
   
-  # Mais 
-  # urls <- fb_match_urls("ENG", gender = "M", season_end_year = as.character(i), tier = "1st")
-  # season <- fb_advanced_match_stats(match_url=urls,  stat_type="summary", team_or_player="team")
-  
-  # Limpeza dos dados
-  cols = c("Wk", "Date", "Home", "HomeGoals", "Away", "AwayGoals")
-  if (i >= 2018){cols = c("Wk", "Date", "Home", "HomeGoals", "Away", "AwayGoals")}
-  season <- season[, cols]
-  season <- season %>%
-    mutate(Wk = as.numeric(Wk)) %>%
-    arrange(Date)
+  matches <- data.frame()
+  erros = c()
+  for (url in urls){
+    
+    # Temporadas
+    match <- get_data(match_url=url)
+    if (is.character(match)){
+      erros <- append(erros, match)
+    } else{
+      matches <- bind_rows(matches, match)
+    }
+  }
   
   # Guarda as temporadas
-  seasons[[paste0('PL', as.character(i))]] = season
+  if (nrow(matches)>0){df_final <- matches %>% arrange(Match_Date)}
+  save(matches, file = paste0("dados/matches_", comp, "_", season, ".RData"))
   
 }
 
-# Uni todas as tabelas num unico data frame
-seasons_df <- rbind(seasons$PL2010,
-                    seasons$PL2011,
-                    seasons$PL2012,
-                    seasons$PL2013,
-                    seasons$PL2014,
-                    seasons$PL2015,
-                    seasons$PL2016,
-                    seasons$PL2017,
-                    seasons$PL2018, # 17-18 primeira temp com xG no Fbref
-                    seasons$PL2019, # 18-19
-                    seasons$PL2020, # 19-20
-                    seasons$PL2021, # 20-21
-                    seasons$PL2022, # 21-22
-                    seasons$PL2023, # 22-23
-                    seasons$PL2024) # 23-24
 
-# Salva os dados
-rm(list=setdiff(ls(),c('seasons', 'seasons_df')))
-save.image("dados/seasons.RData")
 
 
 
