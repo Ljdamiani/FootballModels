@@ -7,7 +7,6 @@
 
 
 ##################################################################################
-##################################################################################
 
 # Melhores Parâmetros por AIC
 best_aic <- function(aics) {
@@ -114,7 +113,7 @@ parx_aic <- function(pmax, qmax, serie, x, link, distr){
       # AIC
       nd_aic[i] <- AIC(mod)
     }
-
+    
     setTxtProgressBar(pb, i)  # Atualizando o progresso
   }
   
@@ -200,7 +199,7 @@ gera_modelos <- function(rodada, dados, link, distr,
     
     # Salva Modelo
     models[[paste0(teamM,'_M')]] <- mod_M
-
+    
   }
   
   # Modelos Visitantes
@@ -403,13 +402,13 @@ est_copula <- function(rodada, dados, models){
     # Dados dos Mandantes
     iH = which(dados_copula$Home == teamM)
     teamM_dados = dados_copula[iH, c("Date", "Away", "HomeGoals", "AwayConc")] # jogando em casa
-
+    
     # Modelo
     mod_M <- models[[paste0(teamM,'_M')]]
     
     # Substitui os resíduos
     dados_copula[iH, 'ResH'] = dados_copula[iH,]$HomeGoals - mod_M$fitted.values
-  
+    
     # ACFS
     acfs_res[[paste0(teamM,'_M')]] <- acf(dados_copula[iH, 'ResH'], 
                                           lag.max = length(dados_copula[iH, 'ResH']),
