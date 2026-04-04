@@ -1,5 +1,12 @@
 
-# Function - Base
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#       FUNCTIONS
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Function - Base (OLD)
+# fb_match_urls()
 # fb_advanced_match_stats()
 # matches <- fb_match_results("ENG", gender = "M", season_end_year = as.character(i))
 
@@ -240,10 +247,91 @@ load_page <- function(url, timeout_sec = 300) {
   }
 }
 
-# Função principal adaptada
+# --------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Função Principal - Matchs
+match_urls <- function (country, season_end_year, time_pause = 3) 
+{
+  
+  # Variables
+  main_url <- "https://web.archive.org/"
+  country_abbr <- country
+  season_end_year_num <- season_end_year
+
+  # Seasons_Links
+  seasons_links <- c(
+    
+    # BRA
+    "BRA2020" = "",
+    "BRA2021" = "",
+    "BRA2022" = "",
+    "BRA2023" = "",
+    "BRA2024" = "",
+    "BRA2025" = "",
+    
+    # FRA
+    "FRA2020" = "",
+    "FRA2021" = "",
+    "FRA2022" = "",
+    "FRA2023" = "",
+    "FRA2024" = "",
+    "FRA2025" = "",
+    
+    # GER
+    "GER2020" = "",
+    "GER2021" = "",
+    "GER2022" = "",
+    "GER2023" = "",
+    "GER2024" = "",
+    "GER2025" = "",
+    
+    # ITA
+    "ITA2020" = "",
+    "ITA2021" = "",
+    "ITA2022" = "",
+    "ITA2023" = "",
+    "ITA2024" = "",
+    "ITA2025" = "",
+    
+    # ESP
+    "ESP2020" = "",
+    "ESP2021" = "",
+    "ESP2022" = "",
+    "ESP2023" = "",
+    "ESP2024" = "https://web.archive.org/web/20251124154603/https://fbref.com/en/comps/12/2023-2024/schedule/2023-2024-La-Liga-Scores-and-Fixtures",
+    "ESP2025" = "https://web.archive.org/web/20251127155622/https://fbref.com/en/comps/12/2024-2025/schedule/2024-2025-La-Liga-Scores-and-Fixtures",
+    
+    # ENG
+    "ENG2020" = "https://web.archive.org/web/20240413092138/https://fbref.com/en/comps/9/2019-2020/schedule/2019-2020-Premier-League-Scores-and-Fixtures",
+    "ENG2021" = "https://web.archive.org/web/20240530003044/https://fbref.com/en/comps/9/2020-2021/schedule/2020-2021-Premier-League-Scores-and-Fixtures",
+    "ENG2022" = "https://web.archive.org/web/20241222043043/https://fbref.com/en/comps/9/2021-2022/schedule/2021-2022-Premier-League-Scores-and-Fixtures",
+    "ENG2023" = "https://web.archive.org/web/20240502175524/https://fbref.com/en/comps/9/2022-2023/schedule/2022-2023-Premier-League-Scores-and-Fixtures",
+    "ENG2024" = "https://web.archive.org/web/20251025004432/https://fbref.com/en/comps/9/2023-2024/schedule/2023-2024-Premier-League-Scores-and-Fixtures",
+    "ENG2025" = "https://web.archive.org/web/20250808165023/https://fbref.com/en/comps/9/2024-2025/schedule/2024-2025-Premier-League-Scores-and-Fixtures"
+  )
+  fixtures_url <- seasons_links[paste0(country_abbr, season_end_year_num)]
+  
+  # Matchs
+  time_wait <- time_pause
+  get_each_seasons_urls <- function(fixture_url, time_pause = time_wait) {
+    Sys.sleep(time_pause)
+    match_report_urls <- load_page(fixture_url) %>% rvest::html_nodes("td.left~ .left+ .left a") %>% 
+      rvest::html_attr("href") %>% paste0(main_url, .) %>% 
+      unique()
+    return(match_report_urls)
+  }
+  all_seasons_match_urls <- fixtures_url %>% purrr::map(get_each_seasons_urls) %>% unlist()
+  history_index <- grep("-History", all_seasons_match_urls)
+  if (length(history_index) != 0) {
+    all_seasons_match_urls <- all_seasons_match_urls[-history_index]
+  }
+  return(all_seasons_match_urls)
+}
+
+# Função principal Get Data
 get_data <- function (match_url, time_pause = 3) {
   
-  main_url <- "https://fbref.com"
+  # main_url <- "https://fbref.com"
   time_wait <- time_pause
 
   pb$tick()

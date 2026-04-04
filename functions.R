@@ -8,24 +8,36 @@
 
 ##################################################################################
 
-# Melhores Parâmetros por AIC
-best_aic <- function(aics) {
+# EMA
+EMA_lag <- function(x, alpha) {
+  out <- numeric(length(x))
+  out[1] <- NA_real_
   
-  element = min(aics[-1]); element
+  for (i in 2:length(x)) {
+    if (is.na(out[i-1])) {
+      out[i] <- x[i-1]
+    } else {
+      out[i] <- alpha * x[i-1] + (1 - alpha) * out[i-1]
+    }
+  }
   
-  row_index <- which(aics == element, arr.ind = TRUE)[, 1]
-  col_index <- which(aics == element, arr.ind = TRUE)[, 2]
-  
-  coordinates <- data.frame(row = row_index, col = col_index)
-  
-  p = coordinates$row - 1
-  q = coordinates$col - 1
-  message(paste("p : ", p)); message(paste("q : ", q))
-  message('         ')
-  return(c(p, q, element))
+  return(out)
 }
 
 ################################################################################
+
+
+###############################################################
+
+
+
+# ________________________ Models __________________________ #
+
+
+
+##############################################################
+
+#### INGARCH / PARX ###############
 
 parx <- function(dados, x, p, q, distr, link){
   
@@ -58,17 +70,6 @@ parx <- function(dados, x, p, q, distr, link){
   
   return(model)
 }
-
-##################################################################################
-
-
-
-# ________________________ Funções para PARX __________________________ #
-
-
-
-##################################################################################
-
 
 #### Seleciona os AICs pelos modelos ###############
 
@@ -614,5 +615,77 @@ rodada_biv <- function(rodada, models, x_null = FALSE, name_copula, copula_model
   
 }
 
+##################################################################################
 
+#### DIXON COLES ###############
+
+fit_dc_model <- function(data_train) {
+  goalmodel(
+    goals1 = data_train$home_goals,
+    goals2 = data_train$away_goals,
+    team1  = data_train$home_team,
+    team2  = data_train$away_team,
+    dc  = T
+  )
+}
+
+fit_rs_model <- function(data_train) {
+  goalmodel(
+    goals1 = data_train$home_goals,
+    goals2 = data_train$away_goals,
+    team1  = data_train$home_team,
+    team2  = data_train$away_team,
+    rs  = T
+  )
+}
+
+predict_dc_match <- function(model, home_team, away_team, max_goals = 6) {
+  
+  prob_matrix <- predict(
+    model,
+    team1 = home_team,
+    team2 = away_team,
+    type = "prob",
+    maxgoal = max_goals
+  )
+  
+  return(prob_matrix)
+}
+
+backtest_dc <- function(data, season_test) {
+  
+  data <- data %>% arrange(Match_Date)
+  
+  results <- list()
+  
+  test_idx <- which(data$Season == season_test)
+  
+  for(i in test_idx){
+    
+    # treino até o jogo anterior
+    data_train <- data[1:(i-1), ]
+    
+    # jogo atual
+    data_test <- data[i, ]
+    
+    # ajustar modelo
+    model_dc <- fit_dc_model(data_train)
+    
+    # prever
+    P <- predict_dc_match(
+      model_dc,
+      home_team = data_test$home_team,
+      away_team = data_test$away_team
+    )
+    
+    results[[i]] <- list(
+      match = data_test,
+      prob_matrix = P
+    )
+    
+    cat("Jogo", i, "processado\n")
+  }
+  
+  return(results)
+}
 

@@ -18,32 +18,37 @@ library(progress)
 # Funções (worldoffootball modificada)
 source("dados/aux_get_data.R")
 seasons = 2020:2025
-campeonatos = c("ENG", "ESP", "ITA", "FRA", "GER", "BRA")
+campeonatos = c(
+  # "ENG", 
+  "ESP", 
+  "ITA", 
+  "FRA", 
+  "GER", 
+  "BRA"
+)
 df <- expand.grid(season = seasons, campeonato = campeonatos)
 stats <- c("summary", "passing", "passing_types", "defense" , "possession", "misc", "keeper")
-
-
-# TODO: OLHAR OS DE BAIXO
-# - ENG 2023
 
 # Loop
 for (i in 17:nrow(df)){
   
   # Infos
+  i = 6
   season <- df$season[i]
   comp <- df$campeonato[i]
   cat("\n\n")
   cat(paste0(i, " de ", nrow(df), " - ", comp, " ", season))
   cat("\n\n")
-  urls <- fb_match_urls(comp, gender = "M", season_end_year = as.character(season), tier = "1st")
+  urls <- match_urls(comp, season_end_year = as.character(season))
   pb <- progress::progress_bar$new(total = length(urls))
   
   matches <- data.frame()
-  erros = c()
-  for (url in urls){
+  erros = c() 
+  for (i_url in 145:length(urls)){
     
     # Temporadas
-    match <- get_data(match_url=url)
+    url = urls[i_url]
+    match <- get_data(match_url = url)
     if (is.character(match)){
       erros <- append(erros, match)
     } else{
@@ -56,8 +61,4 @@ for (i in 17:nrow(df)){
   save(matches, file = paste0("dados/matches_", comp, "_", season, ".RData"))
   
 }
-
-
-
-
 
