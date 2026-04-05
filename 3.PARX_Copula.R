@@ -291,21 +291,26 @@ df_dc <- df_full %>%
   ungroup()
 
 # Example
-model_dc <- fit_dc_model(df_dc)
-pred <- predict_dc_match(
-  model_dc,
-  home_team = "Liverpool",
-  away_team = "Chelsea"
-)
-pred
+# model_dc <- fit_dc_model(df_dc)
+# pred <- predict_dc_match(
+#   model_dc,
+#   home_team = "Liverpool",
+#   away_team = "Arsenal"
+# )
+# pred
 
-# Rue-Salvesen adjustment (2001)
+results_dc <- backtest_dc(data = df_dc, season_test = "2024/2025")
 
-results_dc <- backtest_dc(data = df_dc, season_test = "2022/2023")
-results_dc[[1]]$match
-results_dc[[1]]$prob_matrix
+##############################################################################
 
-# Bivariada Poisson 
+# BIVARIATE POISSON (2003)
+# https://cran.r-project.org/web/packages/footBayes/vignettes/footBayes_a_rapid_guide.html#goal-based-models-fit
+# https://rss.onlinelibrary.wiley.com/doi/10.1111/1467-9884.00366
+
+
+
+
+##############################################################################
 
 # INGARCH Independencia só com MA_SCORE_A de covariavel 
 

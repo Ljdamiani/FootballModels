@@ -620,72 +620,50 @@ rodada_biv <- function(rodada, models, x_null = FALSE, name_copula, copula_model
 #### DIXON COLES ###############
 
 fit_dc_model <- function(data_train) {
+  my_weights = weights_dc(data_train$Match_Date, xi=0.0019)
   goalmodel(
     goals1 = data_train$home_goals,
     goals2 = data_train$away_goals,
     team1  = data_train$home_team,
     team2  = data_train$away_team,
+    weights = my_weights,
     dc  = T
   )
 }
 
-fit_rs_model <- function(data_train) {
-  goalmodel(
-    goals1 = data_train$home_goals,
-    goals2 = data_train$away_goals,
-    team1  = data_train$home_team,
-    team2  = data_train$away_team,
-    rs  = T
-  )
-}
-
-predict_dc_match <- function(model, home_team, away_team, max_goals = 6) {
-  
-  prob_matrix <- predict(
+predict_dc_match <- function(model, home_team, away_team) {
+  prob_matrix <- predict_result(
     model,
     team1 = home_team,
     team2 = away_team,
-    type = "prob",
-    maxgoal = max_goals
+    return_df = T
   )
-  
   return(prob_matrix)
 }
 
 backtest_dc <- function(data, season_test) {
   
   data <- data %>% arrange(Match_Date)
-  
-  results <- list()
-  
+  results <- data.frame()
   test_idx <- which(data$Season == season_test)
   
   for(i in test_idx){
     
-    # treino até o jogo anterior
+    # Train Data
     data_train <- data[1:(i-1), ]
-    
-    # jogo atual
     data_test <- data[i, ]
-    
-    # ajustar modelo
     model_dc <- fit_dc_model(data_train)
     
-    # prever
+    # Predict
     P <- predict_dc_match(
       model_dc,
       home_team = data_test$home_team,
       away_team = data_test$away_team
     )
-    
-    results[[i]] <- list(
-      match = data_test,
-      prob_matrix = P
-    )
-    
-    cat("Jogo", i, "processado\n")
+    P$Match_Date = data$Match_Date[i]
+    results <- bind_rows(results, P)
+    cat("Match", i-test_idx[1]+1, " - ", data$home_team[i], " x ",  data$away_team[i], "\n")
   }
-  
   return(results)
 }
 
