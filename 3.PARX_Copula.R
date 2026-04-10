@@ -21,12 +21,15 @@ library(forecast)
 library(zoo)
 library(slider)
 library(TTR)
+library(caret)
 
 # Packages Football
 # pkgbuild::check_build_tools(debug = TRUE)
 # pak::pak("jalapic/engsoccerdata")
 # pak::pak("opisthokonta/goalmodel")
 library(goalmodel)
+library(footBayes)
+library(extraDistr)
 
 # Functions
 source("functions.R")
@@ -80,33 +83,33 @@ vars_ref <- c(
   "Sh",              # Shots
   "SoT",             # Shots On Target
 
-  "SCA_SCA",         # Shot - Creating Actions (Passes, Take-ons and Drawing Fouls)
+  # "SCA_SCA",         # Shot - Creating Actions (Passes, Take-ons and Drawing Fouls)
   "GCA_SCA",         # Goal - Creating Actions
   
-  "xAG",             # Expected Goals after the Assist
+  # "xAG",             # Expected Goals after the Assist
   "xA",              # Expected Assists
-  "KP",              # Key Passes
+  # "KP",              # Key Passes
   "Final_Third",     # Passes in Final Third
   "PPA",             # Passes into Penalty Area
   "CrsPA",           # Crosses into Penalty Area
   "PrgP",            # Passes Progressivos
   
-  "Cmp_Total",       # Comp. Passes
-  "Att_Total",       # Attemptes
+  # "Cmp_Total",       # Comp. Passes
+  # "Att_Total",       # Attemptes
   "Cmp_percent_Total",
-  "TotDist_Total",
+  # "TotDist_Total",
   "PrgDist_Total",
-  "Cmp_Short",
-  "Att_Short",
-  "Cmp_percent_Short",
-  "Cmp_Medium",
-  "Att_Medium",
-  "Cmp_percent_Medium",
-  "Cmp_Long",
-  "Att_Long",
+  # "Cmp_Short",
+  # "Att_Short",
+  # "Cmp_percent_Short",
+  # "Cmp_Medium",
+  # "Att_Medium",
+  # "Cmp_percent_Medium",
+  # "Cmp_Long",
+  # "Att_Long",
   "Cmp_percent_Long",
   
-  "Live_Pass_Types",
+  # "Live_Pass_Types",
   "Dead_Pass_Types",
   "FK_Pass_Types",
   "TB_Pass_Types",   # Through Balls
@@ -115,18 +118,18 @@ vars_ref <- c(
   "TI_Pass_Types",
   "CK_Pass_Types",
   
-  "Touches",         # Touches
+  # "Touches",         # Touches
   "Def Pen_Touches",
   "Def 3rd_Touches",
   "Mid 3rd_Touches",
   "Att 3rd_Touches",
   "Att Pen_Touches",
   
-  "Att_Take_Ons",    # Dribbles
-  "Succ_Take_Ons",
+  # "Att_Take_Ons",    # Dribbles
+  # "Succ_Take_Ons",
   "Succ_percent_Take_Ons",
-  "Tkld_Take_Ons",
-  "Tkld_percent_Take_Ons",
+  # "Tkld_Take_Ons",
+  # "Tkld_percent_Take_Ons",
   
   "Carries_Carries", # Carries
   "PrgC_Carries",
@@ -163,6 +166,12 @@ vars_ref <- c(
   "Recov"            # Ball recoveries
 
 )
+
+# High correlation (somente vars_ref)
+# X_matches <- Matches %>% select(all_of(vars_ref))
+# corr <- cor(X_matches, use = "pairwise.complete.obs")
+# highCorr <- findCorrelation(corr, cutoff = 0.85)
+# print(colnames(X_matches)[highCorr])
 
 # Adjust Matches
 df_opponents <- Matches %>% 
@@ -232,6 +241,7 @@ df_means <- df_opponents %>%
   select(-all_of(paste0("HIST_",vars_all))) %>%
   mutate(season_start = as.numeric(substr(as.character(Season), 1, 4)))
 
+
 ###################################################################################
 
 # Qualitative Variables
@@ -274,12 +284,11 @@ df_full <- df_means %>% filter(Season != "2019/2020")
 ##############################################################################
 
 # DIXEN & COLES (1997)
+# lambda = attack - defense + home + Xbeta
 # https://github.com/opisthokonta/goalmodel
 
 df_dc <- df_full %>%
-  select(
-    Match_Date,
-    Season,
+  rename(
     home_team = Home_Team,
     away_team = Away_Team,
     home_goals = Score,
@@ -287,18 +296,27 @@ df_dc <- df_full %>%
   ) %>%
   arrange(Match_Date) %>%
   group_by(Match_Date, Season, home_team, away_team) %>%
-  slice(1) %>%
-  ungroup()
+  mutate(side = if_else(row_number() == 1, "home", "away")) %>%
+  ungroup() %>%
+  pivot_wider(
+    names_from = side,
+    values_from = -c(Match_Date, Season, home_team, away_team),
+    names_glue = "{.value}_{side}"
+  )  %>%
+  rename(home_goals = home_goals_home, away_goals = away_goals_home) %>%
+  select(Match_Date, Season, home_team, away_team, home_goals, away_goals,
+         starts_with("MA"),
+         newly_promoted_team_home, newly_promoted_opp_home,
+         newly_promoted_team_away, newly_promoted_opp_away)
+  
 
 # Example
 # model_dc <- fit_dc_model(df_dc)
-# pred <- predict_dc_match(
-#   model_dc,
-#   home_team = "Liverpool",
-#   away_team = "Arsenal"
-# )
+# summary(model_dc)
+# pred <- predict_dc_match(model_dc, home_team = "Liverpool", away_team = "Arsenal")
 # pred
 
+# Backtest
 results_dc <- backtest_dc(data = df_dc, season_test = "2024/2025")
 
 ##############################################################################
@@ -306,133 +324,66 @@ results_dc <- backtest_dc(data = df_dc, season_test = "2024/2025")
 # BIVARIATE POISSON (2003)
 # https://cran.r-project.org/web/packages/footBayes/vignettes/footBayes_a_rapid_guide.html#goal-based-models-fit
 # https://rss.onlinelibrary.wiley.com/doi/10.1111/1467-9884.00366
+# Karlis and Ntzoufras (2003) (MLE through an EM algorithm) and Koopman and Lit (2015);
 
+# Yh = X1 + X3
+# Ya = X2 + X3
 
+df_bivpois <- df_full %>%
+  select(
+    Match_Date,
+    season_start,
+    home_team = Home_Team,
+    away_team = Away_Team,
+    home_goals = Score,
+    away_goals = Score_A
+  ) %>%
+  arrange(Match_Date) %>%
+  group_by(Match_Date, season_start, home_team, away_team) %>%
+  slice(1) %>% ungroup() %>%
+  rename(periods = season_start) %>%
+  select(periods, home_team, away_team, home_goals, away_goals, Match_Date) %>%
+  mutate(periods   = factor(periods))
 
+datas_bivpois = df_bivpois$Match_Date
+df_bivpois <- df_bivpois %>% select(-Match_Date)
+# df_bivpois <- df_bivpois[1:1520, ] # Test
+
+# Example
+# model_bivpois <- fit_bp_footbayes(df_bivpois)
+# model_bivpois
+# pred <- predict_bp_footbayes(model_bivpois, df_bivpois)
+# pred
+
+# Backtest
+results_bivpois <- backtest_bp_footbayes(data = df_bivpois, season_test = 2024, datas_bivpois)
+results_bivpois
 
 ##############################################################################
 
-# INGARCH Independencia só com MA_SCORE_A de covariavel 
+# PARX MODELS
+df_parx <- df_full %>%
+  arrange(Match_Date) 
 
-# INGARCH considerando Correlação por Cópulas
+# Exemplo
 
-# INGARCH (modelagem por time) Independencia só com MA_SCORE_A de covariavel 
-
-# INGARCH (modelagem por time) Correlação por Cópulas
 
 #########################
 #_______ MODELOS _______#
 #########################
 
+# PARX Independencia só com MA_SCORE_A de covariavel (De Angelis)
+
+# PARX Independencia com Todas Variáveis
+
+# PARX Correlação por Cópulas só com MA_SCORE_A de covariavel
+
+# PARX Correlação por Cópulas com Todas Variáveis
 
 
 
 
 
-
-
-
-
-
-
-
-# Poisson + Identity + Sem cov
-models_I_semx <- gera_modelos(rodada, dados, link = 'identity', distr = 'poisson', x_null = T, all_teams = T)
-
-# Poisson + Identity (ALL)
-models_I <- gera_modelos(rodada, dados, link = 'identity', distr = 'poisson', x_null = FALSE, all_teams = T)
-
-# Poisson + Log + Sem cov
-models_log_semx <- gera_modelos(rodada, dados, link = 'log', distr = 'poisson', x_null = T, all_teams = T)
-
-# Poisson + Log (ALL)
-models_log <- gera_modelos(rodada, dados, link = 'log', distr = 'poisson', x_null = FALSE, all_teams = T)
-
-# OBS: Log for negative covariate effects
-
-
-#########################
-#_____ INDEPENDENTE ____#
-#########################
-
-# Poisson + Identity + Sem cov
-rslts_I_semx <- rodada_ind(rodada, dados, models_I_semx, x_null = TRUE)
-probs_I_semx = c(); for(i in 1:10){probs_I_semx = rbind(probs_I_semx, rslts_I_semx[[i]][[2]])}
-probs_I_semx
-
-# Poisson + Identity (ALL)
-rslts_I <- rodada_ind(rodada, dados, models_I)
-probs_I = c(); for(i in 1:10){probs_I = rbind(probs_I, rslts_I[[i]][[2]])}
-probs_I
-
-# Poisson + Log + Sem cov
-rslts_log_semx <- rodada_ind(rodada, dados, models_log_semx, x_null = T)
-probs_log_semx = c(); for(i in 1:10){probs_log_semx = rbind(probs_log_semx, rslts_log_semx[[i]][[2]])}
-probs_log_semx
-
-# Poisson + Log (ALL)
-rslts_log <- rodada_ind(rodada, dados, models_log)
-probs_log = c(); for(i in 1:10){probs_log = rbind(probs_log, rslts_log[[i]][[2]])}
-probs_log
-
-
-###################
-#_____ Copula ____#
-###################
-
-# Poisson + Identity + Sem cov
-selectedCopula <- est_copula(rodada, dados, models_I_semx) # Seleciona a Copula
-name_copula_I_semx <- selectedCopula[[1]]
-name_copula_I_semx
-copula_model_I_semx <- selectedCopula[[2]]
-
-# Probabilidades
-rslts_I_semx_cop <- rodada_biv(rodada, models_I_semx, x_null = T,
-                               name_copula_I_semx, copula_model_I_semx)
-probs_I_semx_cop = c(); for(i in 1:10){probs_I_semx_cop = rbind(probs_I_semx_cop, 
-                                                                rslts_I_semx_cop[[i]][[2]])}
-probs_I_semx_cop
-
-# Poisson + Identity (ALL)
-selectedCopula <- est_copula(rodada, dados, models_I) # Seleciona a Copula
-name_copula_I <- selectedCopula[[1]]
-name_copula_I
-copula_model_I <- selectedCopula[[2]]
-
-# Probabilidades
-rslts_I_cop <- rodada_biv(rodada, models_I, x_null = F,
-                          name_copula_I, copula_model_I)
-probs_I_cop = c(); for(i in 1:10){probs_I_cop = rbind(probs_I_cop, 
-                                                      rslts_I_cop[[i]][[2]])}
-probs_I_cop
-
-
-# Poisson + Log + Sem cov
-selectedCopula <- est_copula(rodada, dados, models_log_semx) # Seleciona a Copula
-name_copula_log_semx <- selectedCopula[[1]]
-name_copula_log_semx
-copula_model_log_semx <- selectedCopula[[2]]
-
-# Probabilidades
-rslts_log_semx_cop <- rodada_biv(rodada, models_log_semx, x_null = T,
-                                 name_copula_log_semx, copula_model_log_semx)
-probs_log_semx_cop = c(); for(i in 1:10){probs_log_semx_cop = rbind(probs_log_semx_cop, 
-                                                                    rslts_log_semx_cop[[i]][[2]])}
-probs_log_semx_cop
-
-
-# Poisson + Log (ALL)
-selectedCopula <- est_copula(rodada, dados, models_log) # Seleciona a Copula
-name_copula_log <- selectedCopula[[1]]
-name_copula_log
-copula_model_log <- selectedCopula[[2]]
-
-# Probabilidades
-rslts_log_cop <- rodada_biv(rodada, models_log, x_null = F,
-                            name_copula_log, copula_model_log)
-probs_log_cop = c(); for(i in 1:10){probs_log_cop = rbind(probs_log_cop, 
-                                                          rslts_log_cop[[i]][[2]])}
-probs_log_cop
 
 
 
