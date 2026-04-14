@@ -263,11 +263,11 @@ match_urls <- function (country, season_end_year, time_pause = 3)
     
     # ITA
     "ITA2020" = "",
-    "ITA2021" = "https://web.archive.org/web/20240618070040/https://fbref.com/en/comps/11/2021-2022/2021-2022-Serie-A-Stats",
-    "ITA2022" = "https://web.archive.org/web/20241223081759/https://fbref.com/en/comps/11/2022-2023/2022-2023-Serie-A-Stats",
+    "ITA2021" = "https://web.archive.org/web/20230224175727/https://fbref.com/en/comps/11/2021-2022/schedule/2021-2022-Serie-A-Scores-and-Fixtures",
+    "ITA2022" = "https://web.archive.org/web/20240917025509/https://fbref.com/en/comps/11/2022-2023/schedule/2022-2023-Serie-A-Scores-and-Fixtures",
     "ITA2023" = "",
     "ITA2024" = "",
-    "ITA2025" = "https://web.archive.org/web/20250811132327/https://fbref.com/en/comps/11/2024-2025/2024-2025-Serie-A-Stats",
+    "ITA2025" = "https://web.archive.org/web/20251129170229/https://fbref.com/en/comps/11/2024-2025/schedule/2024-2025-Serie-A-Scores-and-Fixtures",
     
     # ESP
     "ESP2020" = "",

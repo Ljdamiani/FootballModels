@@ -2,7 +2,7 @@
 
 ########################################################################
 
-## Dados do WorldFootball  ##
+## FBref Data - WorldFootball  ##
 
 #######################################################################
 # devtools::install_github("JaseZiv/worldfootballR") # nolint
@@ -30,7 +30,7 @@ stats <- c("summary", "passing", "passing_types", "defense" , "possession", "mis
 for (i in 1:nrow(df)){
   
   # Infos
-  i = 2
+  # i = 3
   season <- df$season[i]
   comp <- as.character(df$campeonato[i])
   cat("\n\n")
@@ -41,7 +41,7 @@ for (i in 1:nrow(df)){
   
   matches <- data.frame()
   erros = c() 
-  for (i_url in 1:length(urls)){
+  for (i_url in 331:length(urls)){
     
     # Temporadas
     url = urls[i_url]
