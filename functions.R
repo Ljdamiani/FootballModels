@@ -37,105 +37,53 @@ EMA_lag <- function(x, alpha) {
 
 #### PARX (INGARCH) ###############
 
-# parx <- function(dados, x, p, q, distr, link){
-#   
-#   if (p == 0 & q == 0){
-#     
-#     model <- 'Erro'
-#     
-#   } else if (p == 0){
-#     
-#     model <- tsglm(dados,
-#                    xreg = x,
-#                    distr = distr, link = link,
-#                    model = list(past_obs = seq(1, q))) # q - pastobs
-#     
-#   } else if (q == 0) {
-#     
-#     model <- tsglm(dados,
-#                    xreg = x,
-#                    distr = distr, link = link,
-#                    model = list(past_mean = seq(1, p))) # p - pastmean
-#     
-#   } else{
-#     
-#     model <- tsglm(dados,
-#                    xreg = x,
-#                    distr = distr, link = link,
-#                    model = list(past_obs = seq(1, q), # q - pastobs
-#                                 past_mean = seq(1, p))) # p - pastmean 
-#   }
-#   
-#   return(model)
-# }
-
 fit_parx_team <- function(
     y,
     x = NULL,
     p_max = 2,
     q_max = 2,
-    links = c("log","identity"),
-    distr = "poisson",
-    max_vars = 10
+    links = c("identity", "log"),
+    distr = "poisson"
 ){
   
-  # caso sem covariáveis
-  if(is.null(x)){
-    x_list <- list(NULL)
-  } else{
+  # -------------------------
+  # SCALE X (MIN-MAX)
+  # -------------------------
+  
+  if(!is.null(x)){
     
     x <- as.matrix(x)
     
-    # começa com nenhuma variável
-    x_list <- list(NULL)
+    xmin <- apply(x, 2, min, na.rm = TRUE)
+    xmax <- apply(x, 2, max, na.rm = TRUE)
+    range <- xmax - xmin
     
-    # seleção forward
-    selected <- c()
-    remaining <- 1:ncol(x)
+    # detectar dummies (0/1)
+    is_dummy <- apply(x, 2, function(v){
+      vals <- unique(na.omit(v))
+      all(vals %in% c(0,1))
+    })
     
-    best_aic <- Inf
+    # evitar divisão por zero
+    range[range == 0] <- 1
     
-    repeat{
+    # escalar apenas não dummies
+    for(j in seq_len(ncol(x))){
       
-      aic_try <- rep(Inf, length(remaining))
-      
-      for(i in seq_along(remaining)){
-        
-        vars <- c(selected, remaining[i])
-        
-        fit <- try(
-          tsglm(
-            y,
-            xreg = x[,vars,drop=FALSE],
-            model=list(past_obs=1,past_mean=1)
-          ),
-          silent=TRUE
-        )
-        
-        if(!inherits(fit,"try-error")){
-          aic_try[i] <- AIC(fit)
-        }
+      if(!is_dummy[j]){
+        x[,j] <- (x[,j] - xmin[j]) / range[j]
       }
-      
-      if(min(aic_try) < best_aic){
-        
-        best <- which.min(aic_try)
-        
-        selected <- c(selected, remaining[best])
-        remaining <- remaining[-best]
-        
-        best_aic <- min(aic_try)
-        
-      } else break
-      
-      if(length(selected) >= max_vars) break
     }
     
-    x_list <- list(
-      NULL,
-      x[,selected,drop=FALSE]
-    )
+  } else{
+    xmin <- NULL
+    xmax <- NULL
+    is_dummy <- NULL
   }
+  
+  # -------------------------
+  # GRID SEARCH
+  # -------------------------
   
   grid <- expand.grid(
     p = 0:p_max,
@@ -151,88 +99,10 @@ fit_parx_team <- function(
     
     p <- grid$p[g]
     q <- grid$q[g]
-    link <- grid$link[g]
+    link <- as.character(grid$link[g])
+    cat(paste("\n p =", p, " q =", q, " ", link))
     
     model_list <- list()
-    if(q>0) model_list$past_obs <- 1:q
-    if(p>0) model_list$past_mean <- 1:p
-    
-    for(xreg in x_list){
-      
-      fit <- try(
-        tsglm(
-          y,
-          xreg = xreg,
-          distr = distr,
-          link = link,
-          model = model_list
-        ),
-        silent = TRUE
-      )
-      
-      if(!inherits(fit,"try-error")){
-        
-        aic <- AIC(fit)
-        
-        if(aic < best_aic){
-          
-          best_aic <- aic
-          best_model <- fit
-          
-          best_spec <- list(
-            p = p,
-            q = q,
-            link = link,
-            vars = if(is.null(xreg)) NULL else colnames(xreg),
-            AIC = aic
-          )
-        }
-      }
-    }
-  }
-  
-  attr(best_model,"best_spec") <- best_spec
-  
-  return(best_model)
-}
-
-fit_parx_team <- function(
-    y,
-    x = NULL,
-    p_max = 3,
-    q_max = 3,
-    links = c("log", "identity"),
-    distr = "poisson"
-){
-  
-  grid <- expand.grid(
-    p = 0:p_max,
-    q = 0:q_max,
-    link = links
-  )
-  
-  if(!is.null(x)){
-    mu <- colMeans(x, na.rm=TRUE)
-    sd <- apply(x,2,sd,na.rm=TRUE)
-    
-    x <- scale(x, center = mu, scale = sd)
-  } else{
-    mu <- NULL
-    sd <- NULL
-  }
-  
-  best_aic <- Inf
-  best_model <- NULL
-  best_spec <- NULL
-  
-  for(i in 1:nrow(grid)){
-    
-    p <- grid$p[i]
-    q <- grid$q[i]
-    link <- as.character(grid$link[i])
-    
-    model_list <- list()
-    
     if(q > 0) model_list$past_obs  <- 1:q
     if(p > 0) model_list$past_mean <- 1:p
     
@@ -247,166 +117,198 @@ fit_parx_team <- function(
       silent = TRUE
     )
     
-    if(!inherits(fit,"try-error")){
+    aic <- try(AIC(fit), silent = TRUE)
+    
+    if(!inherits(fit,"try-error") && is.finite(aic)){
       
-      aic <- AIC(fit)
-      
-      if(is.finite(aic) && aic < best_aic){
+      cat(paste("   ", round(aic, 3)))
+      if(aic < best_aic){
         
         best_aic <- aic
         best_model <- fit
-        
         best_spec <- list(
           p = p,
           q = q,
           link = link,
+          vars = if(is.null(x)) NULL else colnames(x),
           AIC = aic
         )
       }
     }
   }
   
-  attr(best_model,"best_spec") <- best_spec
+  cat(paste("\n \n  BEST - p =", best_spec$p, " q =", best_spec$q, " ", best_spec$link, " ", best_spec$AIC, "\n"))
+
+  # -------------------------
+  # SAVE SCALING
+  # -------------------------
   
+  attr(best_model,"scaling") <- list(
+    min = xmin,
+    max = xmax
+  )
+  attr(best_model,"is_dummy") <- is_dummy
+  attr(best_model,"best_spec") <- best_spec
   return(best_model)
+}
+
+##############################################################
+
+#### BACKTEST PARX (INGARCH) ###############
+
+backtest_parx <- function(data, season_test, x_col, model_name){
+  
+  # data = df_parx
+  # season_test = "2024/2025"
+  # x_col = c(paste0("MA_", vars_all), "newly_promoted_team", "newly_promoted_opp")
+  # model_name = "PARX ALL VARIABLES"
+  
+  data = df_parx
+  # season_test = "2024/2025"
+  # x_col = c(paste0("MA_Score_A"))
+  # model_name = "PARX MA_SCORE_A VARIABLES"
+  
+  data <- data[order(data$Match_Date), ]
+  
+  # Matches
+  games <- data %>%
+    group_by(Match_Date, Home_Team, Away_Team) %>%
+    slice(1) %>% ungroup()
+  
+  test_games <- which((games$Season == season_test) & (as.numeric(games$Wk) > 2))
+  
+  games$game_id <- 1:nrow(games)
+  data <- data %>% left_join(select(games, Match_Date, Home_Team, Away_Team, game_id)) %>%
+    suppressMessages()
+  
+  # First Train
+  cat("\n First Train \n")
+  first_game <- test_games[1]
+  train0 <- data[data$Match_Date < games$Match_Date[first_game], ]
+  models <- fit_parx_league(train0, x_col)
+  results <- list()
+  
+  for(g in test_games[39:length(test_games)]){
+    
+    date  <- games$Match_Date[g]
+    home  <- games$Home_Team[g]
+    away  <- games$Away_Team[g]
+    
+    cat(paste0("\n"))
+    cat(home, "x", away, "\n")
+    cat("\n", model_name, "   ", which(test_games==g), " de ", length(test_games), "\n")
+    cat(paste0("\n"))
+    
+    # Home and Away  (Rows)
+    game_rows <- data[data$Match_Date == date & data$Home_Team == home & data$Away_Team == away, ]
+    row_H <- game_rows[game_rows$Home_Away == "Home", ]
+    row_A <- game_rows[game_rows$Home_Away == "Away", ]
+    
+    # -----------------------
+    # 1 Prediction
+    # -----------------------
+    
+    lambda_H <- predict_parx(models[[paste0(home,"_H")]], row_H[,x_col,drop=FALSE])
+    lambda_A <- predict_parx(models[[paste0(away,"_A")]], row_A[,x_col,drop=FALSE])
+    
+    # -----------------------
+    # 2 Independence
+    # -----------------------
+    
+    prob_ind <- outer(dpois(0:7, lambda_H), dpois(0:7, lambda_A))
+    rownames(prob_ind) <- 0:7
+    colnames(prob_ind) <- 0:7
+    
+    PH <- sum(prob_ind[lower.tri(prob_ind)])
+    PD <- sum(diag(prob_ind))
+    PA <- sum(prob_ind[upper.tri(prob_ind)])
+    
+    prob_ind_df <- data.frame(Home = home, Away = away, PH = PH, PD = PD, PA = PA, Date = date)
+    
+    # -----------------------
+    # 3 Copula
+    # -----------------------
+    
+    train <- data[data$Match_Date < date, ]
+    res <- compute_parx_residuals(train, models)
+    cop <- estimate_parx_copula(res)
+    
+    prob_cop <- predict_parx_copula(lambda_H, lambda_A, cop$model)
+    rownames(prob_cop) <- 0:7
+    colnames(prob_cop) <- 0:7
+    
+    PH_COP <- sum(prob_cop[lower.tri(prob_cop)])
+    PD_COP <- sum(diag(prob_cop))
+    PA_COP <- sum(prob_cop[upper.tri(prob_cop)])
+    
+    prob_cop_df <- data.frame(Home = home, Away = away, PH = PH_COP, PD = PD_COP, PA = PA_COP, Date = date)
+    
+    # -----------------------
+    # 4 Save
+    # -----------------------
+    
+    results[[g - test_games[1] + 1]] <- list(
+      models = models,
+      date = date,
+      home = home,
+      away = away,
+      lambda_H = lambda_H,
+      lambda_A = lambda_A,
+      prob_ind = prob_ind_df,
+      prob_cop = prob_cop_df,
+      copula = cop$name,
+      copula_model = cop$model
+    )
+    
+    # -----------------------
+    # Update Model
+    # -----------------------
+    
+    train_full <- data[data$game_id <= g, ]
+    models <- update_parx_models(models, train_full, home, away, x_col)
+  }
+  
+  return(results)
 }
 
 fit_parx_league <- function(
     data,
-    y_col,
     x_col,
     p_max = 3,
     q_max = 3
 ){
   
-  data = df_parx
+  # data = train0
+  # y_col = "Score"
+  # x_col = c(paste0("MA_", vars_all), "newly_promoted_team", "newly_promoted_opp")
+  # p_max = 3
+  # q_max = 3
   y_col = "Score"
-  x_col = c(paste0("MA_", vars_all), "newly_promoted_team", "newly_promoted_opp")
-  p_max = 3
-  q_max = 3
   teams <- unique(data$Team)
   models <- list()
+  cat(paste0("\n"))
   
   for(team in teams){
+    cat(paste0("\n", team, " ", which(team == teams), "/", length(teams), "\n"))
     
     # HOME
+    cat(paste0("\n Home \n"))
     dH <- data[(data$Team == team)&(data$Home_Away == "Home"), ]
     y <- dH[[y_col]]
     x <- if(!is.null(x_col)) as.matrix(dH[, x_col]) else NULL
     
-    models[[paste0(team,"_H")]]
-    teste <- fit_parx_team(y, x, p_max, q_max)
+    models[[paste0(team,"_H")]] <- fit_parx_team(y, x, p_max, q_max)
     
     # AWAY
-    dA <- data[data$Away == team, ]
-    y <- dA[[y_away]]
+    cat(paste0("\n Away \n"))
+    dA <- data[(data$Team == team)&(data$Home_Away == "Away"), ]
+    y <- dA[[y_col]]
     x <- if(!is.null(x_col)) as.matrix(dA[, x_col]) else NULL
     
-    models[[paste0(team,"_A")]] <- 
-      fit_parx_team(y, x, p_max, q_max)
+    models[[paste0(team,"_A")]] <- fit_parx_team(y, x, p_max, q_max)
   }
   
   return(models)
-}
-
-backtest_parx <- function(data, season_test){
-  
-  data <- data[order(data$Date), ]
-  
-  test_idx <- which(data$Season == season_test)
-  
-  results <- list()
-  
-  for(i in test_idx){
-    
-    cat("Match", i-test_idx[1]+1,"\n")
-    
-    # treino até t-1
-    train <- data[1:(i-1), ]
-    
-    # 1) FIT TODOS TIMES
-    models <- fit_parx_league(train)
-    
-    # 2) RESÍDUOS
-    train_res <- compute_parx_residuals(train, models)
-    
-    # 3) CÓPULA
-    cop <- estimate_parx_copula(train_res)
-    
-    # 4) PREVER JOGO
-    game <- data[i,]
-    
-    lambda <- predict_parx_lambda(
-      game$Home,
-      game$Away,
-      models
-    )
-    
-    # 5) BIVARIADA
-    prob <- predict_parx_copula(
-      lambda$lambda_H,
-      lambda$lambda_A,
-      cop$model
-    )
-    
-    results[[i]] <- list(
-      match = game,
-      prob = prob,
-      copula = cop$name
-    )
-  }
-  
-  return(results)
-}
-
-backtest_parx_fast <- function(data, season_test){
-  
-  data <- data[order(data$Date), ]
-  test_idx <- which(data$Season == season_test)
-  
-  # inicializa modelos com treino inicial
-  train0 <- data[1:(test_idx[1]-1), ]
-  models <- fit_parx_league(train0)
-  
-  results <- list()
-  
-  for(i in test_idx){
-    
-    game <- data[i,]
-    
-    # 1 previsão com modelos atuais
-    lambda <- predict_parx_lambda(
-      game$Home,
-      game$Away,
-      models
-    )
-    
-    # 2 resíduos + cópula
-    train <- data[1:(i-1), ]
-    
-    train_res <- compute_parx_residuals(train, models)
-    
-    cop <- estimate_parx_copula(train_res)
-    
-    # 3 previsão bivariada
-    prob <- predict_parx_copula(
-      lambda$lambda_H,
-      lambda$lambda_A,
-      cop$model
-    )
-    
-    results[[i]] <- prob
-    
-    # 4 atualiza modelos APENAS times afetados
-    models <- update_parx_models(
-      models,
-      data[1:i,],
-      game$Home,
-      game$Away
-    )
-  }
-  
-  return(results)
 }
 
 update_parx_models <- function(
@@ -414,167 +316,36 @@ update_parx_models <- function(
     data,
     home,
     away,
-    x_home = NULL,
-    x_away = NULL
+    x_col = NULL,
+    p_max = 3,
+    q_max = 3
 ){
   
+  cat(paste0("\n ===> UPDATE MODELS \n"))
+  y_col = "Score"
+  
+  cat(paste0("\n Home - ", home, "\n"))
+  
   # HOME team update
-  dH <- data[data$Home == home, ]
+  dH <- data[(data$Team == home)&(data$Home_Away == "Home"), ]
+  y <- dH[[y_col]]
+  x <- if(!is.null(x_col)) as.matrix(dH[,x_col]) else NULL
+  models[[paste0(home,"_H")]] <- fit_parx_team(y, x, p_max, q_max)
   
-  y <- dH$HomeGoals
-  x <- if(!is.null(x_home)) as.matrix(dH[,x_home]) else NULL
-  
-  models[[paste0(home,"_H")]] <- 
-    fit_parx_team(y, x)
-  
+  cat(paste0("\n Away - ", away, "\n"))
   
   # AWAY team update
-  dA <- data[data$Away == away, ]
-  
-  y <- dA$AwayGoals
-  x <- if(!is.null(x_away)) as.matrix(dA[,x_away]) else NULL
-  
-  models[[paste0(away,"_A")]] <- 
-    fit_parx_team(y, x)
+  dA <- data[(data$Team == away)&(data$Home_Away == "Away"), ]
+  y <- dA[[y_col]]
+  x <- if(!is.null(x_col)) as.matrix(dA[,x_col]) else NULL
+  models[[paste0(away,"_A")]] <- fit_parx_team(y, x, p_max, q_max)
   
   return(models)
 }
 
 ##################################################################################
 
-
-
-# ________________________ Rodada Independente __________________________ #
-
-
-
-##################################################################################
-
-
-# Funcao Rodada Independente
-
-rodada_ind <- function(rodada, dados, models, x_null = FALSE){
-  
-  retorno <- list()
-  
-  for (i in 1:nrow(rodada)){
-    
-    # i = 1
-    
-    # Mandante e Visitante
-    teamM = rodada$Home[i]
-    teamV = rodada$Away[i]
-    
-    # Mostra o Jogo que ta percorrendo
-    message(paste('      ', teamM, 'x', teamV, '    Wk', rodada$Wk[i], '    Jogo', i))
-    
-    # Dados dos Mandantes e Visitantes
-    iH = which(dados$Home == teamM)
-    teamM_dados = dados[iH, c("Date", "Away", "HomeGoals", "AwayConc")]
-    iV = which(dados$Away == teamV)
-    teamV_dados = dados[iV, c("Date", "Home", "AwayGoals", "HomeConc")] 
-    
-    # Teste
-    teamM_teste = teamM_dados[teamM_dados$Date == rodada$Date[i], ]
-    teamV_teste = teamV_dados[teamV_dados$Date == rodada$Date[i], ]
-    
-    # Series Teste
-    teamM_ts_teste <- ts(teamM_teste$HomeGoals)
-    teamV_ts_teste <- ts(teamV_teste$AwayGoals)
-    
-    # Covariáveis
-    x_teamM_teste <- teamM_teste$AwayConc
-    x_teamV_teste <- teamV_teste$HomeConc
-    
-    
-    ####### MODELO PARA MANDANTE ###################
-    mod_M <- models[[paste0(teamM,'_M')]]
-    
-    # AIC
-    aicM <- AIC(mod_M)
-    
-    # Predicao
-    if (x_null){
-      lM = predict(mod_M, n.ahead=1)$pred
-    } else{
-      lM = predict(mod_M, n.ahead=1, newxreg=x_teamM_teste)$pred
-    }
-    
-    # Poisson P(lM)
-    pM = rep(NA, 7)
-    names(pM) = 0:6
-    for (i in 0:6){
-      pM[i+1] = dpois(x = i, lambda = lM)
-    }
-    
-    ####### MODELO PARA VISITANTE ###################
-    mod_V <- models[[paste0(teamV,'_V')]]
-    
-    # Predicao
-    if (x_null){
-      lV = predict(mod_V, n.ahead=1)$pred
-    } else{
-      lV = predict(mod_V, n.ahead=1, newxreg=x_teamV_teste)$pred
-    }
-    
-    # AIC
-    aicV <- AIC(mod_V)
-    
-    # Poisson P(lM)
-    pV = rep(NA, 7)
-    names(pV) = 0:6
-    for (i in 0:6){
-      pV[i+1] = dpois(x = i, lambda = lV)
-    }
-    
-    ############################### TABELAS #############################################
-    
-    # Placares
-    resultado = pM %*% t(pV)
-    
-    # Probabilidades
-    pVM = sum(resultado[lower.tri(resultado)])
-    pE = sum(diag(resultado))
-    pVV = sum(resultado[upper.tri(resultado)])
-    
-    # Padroniza para soma 1
-    total = pVM + pE + pVV
-    pVM = pVM/total; pE = pE/total; pVV = pVV/total
-    
-    # Extras Probs
-    BTTS = sum(resultado[-1, -1])
-    Mais_de_1meio = (sum(resultado[2:7, 1]) + sum(resultado[1, 2:7]) + sum(resultado[-1, -1]))
-    
-    # Tabela Final
-    probs_resultado = data.frame(M = teamM, GM = teamM_teste$HomeGoals,
-                                 GV = teamV_teste$AwayGoals, V = teamV, 
-                                 pVM = round(pVM, 4), pE = round(pE, 4), pVV = round(pVV, 4), 
-                                 BTTS = round(BTTS, 4), 'p1.5' = round(Mais_de_1meio, 4),
-                                 aicM = round(aicM, 4), aicV = round(aicV, 4))
-    print(probs_resultado)
-    message(" ")
-    
-    # Guarda na Lista
-    retorno[[paste0(teamM," x ", teamV)]][["resultado"]] <- resultado
-    retorno[[paste0(teamM," x ", teamV)]][["probs"]] <- probs_resultado
-    
-  }
-  
-  return(retorno)
-  
-}
-
-
-
-##################################################################################
-
-
-
-# ________________________ Funções para Cópulas __________________________ #
-
-
-
-##################################################################################
+#### COPULA FUNCTIONS ###############
 
 est_copula <- function(rodada, dados, models){
   
@@ -689,29 +460,30 @@ est_copula <- function(rodada, dados, models){
 
 compute_parx_residuals <- function(data, models){
   
+  data <- data %>%
+    group_by(Match_Date, Home_Team, Away_Team) %>%
+    mutate(
+      Home_Goals = first(Score),
+      Away_Goals = last(Score)
+    ) %>%
+    select(Match_Date, Home_Team, Away_Team, Home_Goals, Away_Goals) %>%
+    slice(1) %>% ungroup()
+  
   data$ResH <- NA
   data$ResA <- NA
-  
-  teams <- unique(c(data$Home, data$Away))
+  teams <- unique(c(data$Home_Team, data$Away_Team))
   
   for(team in teams){
     
     # HOME
-    idxH <- data$Home == team
-    
+    idxH <- data$Home_Team == team
     modH <- models[[paste0(team,"_H")]]
-    
-    data$ResH[idxH] <- 
-      data$HomeGoals[idxH] - modH$fitted.values
-    
+    data$ResH[idxH] <- data$Home_Goals[idxH] - modH$fitted.values
     
     # AWAY
-    idxA <- data$Away == team
-    
+    idxA <- data$Away_Team == team
     modA <- models[[paste0(team,"_A")]]
-    
-    data$ResA[idxA] <- 
-      data$AwayGoals[idxA] - modA$fitted.values
+    data$ResA[idxA] <- data$Away_Goals[idxA] - modA$fitted.values
   }
   
   return(data)
@@ -739,162 +511,44 @@ estimate_parx_copula <- function(data){
   )
 }
 
-
 ##################################################################################
 
+#### PREDICTION ###############
 
-rodada_biv <- function(rodada, models, x_null = FALSE, name_copula, copula_model){
+predict_parx <- function(model, newx){
   
-  retorno <- list()
+  scaling  <- attr(model, "scaling")
+  is_dummy <- attr(model, "is_dummy")
   
-  # Generate grid
-  gols1 = 0:7; gols2 = 7:0
-  grid = as.matrix(expand.grid(gols1, gols2))
-  
-  # Rodada
-  for (i in 1:nrow(rodada)){
+  if(!is.null(newx)){
     
-    #i = 1
+    newx <- as.matrix(newx)
     
-    # Mandante e Visitante
-    teamM = rodada$Home[i]
-    teamV = rodada$Away[i]
-    
-    # Mostra o Jogo que ta percorrendo
-    message(paste(teamM, 'x', teamV, '    Wk', rodada$Wk[i], '    Jogo', i))
-    
-    # Dados dos Mandantes e Visitantes
-    iH = which(dados$Home == teamM)
-    iV = which(dados$Away == teamV)
-    teamM_dados = dados[iH, c("Date", "Away", "HomeGoals", "AwayConc")] # jogando em casa
-    teamV_dados = dados[iV, c("Date", "Home", "AwayGoals", "HomeConc")] # jogando fora
-    
-    # Teste
-    teamM_teste = teamM_dados[teamM_dados$Date == rodada$Date[i], ]
-    teamV_teste = teamV_dados[teamV_dados$Date == rodada$Date[i], ]
-    x_teamM_teste <- teamM_teste$AwayConc
-    x_teamV_teste <- teamV_teste$HomeConc
-    
-    # Modelos
-    mod_M = models[[paste0(teamM, '_M')]]
-    mod_V = models[[paste0(teamV, '_V')]]
-    
-    # ACIS
-    aicM = AIC(mod_M)
-    aicV = AIC(mod_V)
-    
-    # Predicao
-    if (x_null){
-      lM = predict(mod_M, n.ahead=1)$pred
-      lV = predict(mod_V, n.ahead=1)$pred
-    } else{
-      lM = predict(mod_M, n.ahead=1, newxreg=x_teamM_teste)$pred
-      lV = predict(mod_V, n.ahead=1, newxreg=x_teamV_teste)$pred
+    for(j in seq_len(ncol(newx))){
+      
+      if(!is_dummy[j]){
+        
+        minj <- scaling$min[j]
+        maxj <- scaling$max[j]
+        range <- maxj - minj
+        
+        if(range == 0) range <- 1
+        
+        newx[,j] <- (newx[,j] - minj) / range
+      }
     }
-    
-    
-    ###################################################
-    ### __________ Prediction - Bivariate _________ ###
-    ###################################################
-    # https://www.r-bloggers.com/2015/10/modelling-dependence-with-copulas-in-r/
-    
-    # Parâmetros copula
-    rho <- copula_model@estimate
-    
-    # Copula Selecionada
-    if (name_copula == 'Normal'){
-      biFit = normalCopula(param = rho, dim = 2)
-    } else if (name_copula == 'Frank'){
-      biFit = frankCopula(param = rho, dim = 2)
-    } else if (name_copula == 'Clayton'){
-      biFit = claytonCopula(param = rho, dim = 2)
-    }
-    
-    # Build the bivariate distribution
-    biv <- mvdc(biFit, margins = c("pois","pois"), 
-                paramMargins = list(list(lambda = lM), 
-                                    list(lambda = lV)))
-    
-    # Compute the density
-    pm <- dMvdc(grid, biv)
-    
-    # Resultados
-    rslts = cbind(grid, pm)
-    
-    # Matriz - Placares
-    resultado = matrix(NA, 8, 8)
-    
-    for (i in 1:nrow(rslts)){
-      # Guarda a probabilidade do placar (i -> linha Home / j -> coluna Away)
-      resultado[rslts[i, 1] + 1, rslts[i, 2] + 1] = rslts[i, 3]
-    }
-    row.names(resultado) = 0:7; colnames(resultado) = 0:7
-    
-    ############################### TABELAS #############################################
-    
-    # Probabilidades
-    pVM = sum(resultado[lower.tri(resultado)])
-    pE = sum(diag(resultado))
-    pVV = sum(resultado[upper.tri(resultado)])
-    
-    # Padroniza para soma 1
-    total = pVM + pE + pVV
-    pVM = pVM/total; pE = pE/total; pVV = pVV/total
-    
-    # Extras Probs
-    BTTS = sum(resultado[-1, -1])
-    Mais_de_1meio = (sum(resultado[2:7, 1]) + sum(resultado[1, 2:7]) + sum(resultado[-1, -1]))
-    
-    # Tabela Final
-    probs_resultado = data.frame(M = teamM, GM = teamM_teste$HomeGoals,
-                                 GV = teamV_teste$AwayGoals, V = teamV, 
-                                 pVM = round(pVM, 4), pE = round(pE, 4), pVV = round(pVV, 4), 
-                                 BTTS = round(BTTS, 4), 'p1.5' = round(Mais_de_1meio, 4),
-                                 aicM = round(aicM, 4), aicV = round(aicV, 4))
-    
-    print(probs_resultado)
-    message(" ")
-    
-    # Guarda na Lista
-    retorno[[paste0(teamM," x ", teamV)]][["resultado"]] <- resultado
-    retorno[[paste0(teamM," x ", teamV)]][["probs"]] <- probs_resultado
-    
   }
   
-  return(retorno)
-  
+  predict(model, n.ahead=1, newxreg=newx)$pred
 }
 
-
-predict_parx_lambda <- function(
-    home,
-    away,
-    models,
-    x_home = NULL,
-    x_away = NULL
-){
+predict_parx_copula <- function(lambda_H, lambda_A, copula_fit){
   
-  mod_H <- models[[paste0(home,"_H")]]
-  mod_A <- models[[paste0(away,"_A")]]
-  
-  lH <- predict(mod_H, n.ahead = 1, newxreg = x_home)$pred
-  lA <- predict(mod_A, n.ahead = 1, newxreg = x_away)$pred
-  
-  return(list(lambda_H = lH, lambda_A = lA))
-}
-
-predict_parx_independent <- function(lambda_H, lambda_A, max_goals = 7){
-  
-  pH <- dpois(0:max_goals, lambda_H)
-  pA <- dpois(0:max_goals, lambda_A)
-  
-  outer(pH, pA)
-}
-
-predict_parx_copula <- function(lambda_H, lambda_A, copula){
+  cop <- copula_fit@copula
+  cop <- setTheta(cop, copula_fit@estimate)
   
   biv <- mvdc(
-    copula,
+    cop,
     margins = c("pois","pois"),
     paramMargins = list(
       list(lambda = lambda_H),
@@ -904,10 +558,8 @@ predict_parx_copula <- function(lambda_H, lambda_A, copula){
   
   grid <- expand.grid(0:7,0:7)
   pm <- dMvdc(as.matrix(grid), biv)
-  
   matrix(pm, 8, 8)
 }
-
 
 ##################################################################################
 
@@ -977,7 +629,7 @@ backtest_dc <- function(data, season_test, cols_x1 = NULL, cols_x2 = NULL) {
   
   data <- data %>% arrange(Match_Date)
   results <- data.frame()
-  test_idx <- which(data$Season == season_test)
+  test_idx <- which((data$Season == season_test)&(data$Wk != 1))
   
   for(i in test_idx){
     
@@ -1024,11 +676,9 @@ backtest_dc <- function(data, season_test, cols_x1 = NULL, cols_x2 = NULL) {
   return(results)
 }
 
-
 ##################################################################################
 
 #### POISSON BIVARIADA ###############
-
 
 fit_bp_footbayes <- function(data_train) {
   fit <- mle_foot(
@@ -1050,13 +700,14 @@ predict_bp_footbayes <- function(model, data_train, home_team, away_team) {
   return(pred)
 }
 
-backtest_bp_footbayes <- function(data, season_test, datas) {
+backtest_bp_footbayes <- function(data, season_test, datas, weeks) {
 
   # data = df_bivpois
   # season_test = 2024
   # datas = datas_bivpois
+  # weeks = wk_bovpois
   results <- data.frame()
-  test_idx <- which(data$periods == season_test)
+  test_idx <- which((data$periods == season_test) & weeks)
   
   for(i in test_idx){
     

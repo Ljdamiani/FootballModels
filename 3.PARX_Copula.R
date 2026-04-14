@@ -81,24 +81,24 @@ vars_ref <- c(
   # ===> Offensives
   "xG_Expected",     # Expected Goals
   "Sh",              # Shots
-  "SoT",             # Shots On Target
+  # "SoT",             # Shots On Target
 
   # "SCA_SCA",         # Shot - Creating Actions (Passes, Take-ons and Drawing Fouls)
-  "GCA_SCA",         # Goal - Creating Actions
+  # "GCA_SCA",         # Goal - Creating Actions
   
   # "xAG",             # Expected Goals after the Assist
-  "xA",              # Expected Assists
+  # "xA",              # Expected Assists
   # "KP",              # Key Passes
-  "Final_Third",     # Passes in Final Third
-  "PPA",             # Passes into Penalty Area
-  "CrsPA",           # Crosses into Penalty Area
-  "PrgP",            # Passes Progressivos
+  # "Final_Third",     # Passes in Final Third
+  # "PPA",             # Passes into Penalty Area
+  "CrsPA"           # Crosses into Penalty Area
+  # "PrgP",            # Passes Progressivos
   
   # "Cmp_Total",       # Comp. Passes
   # "Att_Total",       # Attemptes
-  "Cmp_percent_Total",
+  # "Cmp_percent_Total",
   # "TotDist_Total",
-  "PrgDist_Total",
+  # "PrgDist_Total",
   # "Cmp_Short",
   # "Att_Short",
   # "Cmp_percent_Short",
@@ -107,64 +107,63 @@ vars_ref <- c(
   # "Cmp_percent_Medium",
   # "Cmp_Long",
   # "Att_Long",
-  "Cmp_percent_Long",
+  # "Cmp_percent_Long",
   
   # "Live_Pass_Types",
-  "Dead_Pass_Types",
-  "FK_Pass_Types",
-  "TB_Pass_Types",   # Through Balls
-  "Sw_Pass_Types",   # Switch
-  "Crs_Pass_Types",  # Crosses
-  "TI_Pass_Types",
-  "CK_Pass_Types",
+  # "Dead_Pass_Types",
+  # "FK_Pass_Types",
+  # "TB_Pass_Types",   # Through Balls
+  # "Sw_Pass_Types",   # Switch
+  # "Crs_Pass_Types",  # Crosses
+  # "TI_Pass_Types",
+  # "CK_Pass_Types",
   
   # "Touches",         # Touches
-  "Def Pen_Touches",
-  "Def 3rd_Touches",
-  "Mid 3rd_Touches",
-  "Att 3rd_Touches",
-  "Att Pen_Touches",
+  # "Def Pen_Touches",
+  # "Def 3rd_Touches",
+  # "Mid 3rd_Touches",
+  # "Att 3rd_Touches",
+  # "Att Pen_Touches",
   
   # "Att_Take_Ons",    # Dribbles
   # "Succ_Take_Ons",
-  "Succ_percent_Take_Ons",
+  # "Succ_percent_Take_Ons",
   # "Tkld_Take_Ons",
   # "Tkld_percent_Take_Ons",
   
-  "Carries_Carries", # Carries
-  "PrgC_Carries",
-  "CPA_Carries",
-  "Mis_Carries",
-  "Dis_Carries",
-  "PrgDist_Carries",
-  "Final_Third_Carries",
-  "Fld",             # Fouls Drawn
+  # "Carries_Carries", # Carries
+  # "PrgC_Carries",
+  # "CPA_Carries",
+  # "Mis_Carries",
+  # "Dis_Carries",
+  # "PrgDist_Carries",
+  # "Final_Third_Carries",
+  # "Fld",             # Fouls Drawn
   
   # ===> Defensives
-  "CrdY",            # Yellow Card
-  "CrdR",            # Red Card
-  "Fls",             # Fouls Commited
+  # "CrdY",            # Yellow Card
+  # "CrdR",            # Red Card
+  # "Fls",             # Fouls Commited
   
-  "Tkl",             # Tackle
-  "TklW",
-  "Def 3rd_Tackles",
-  "Mid 3rd_Tackles",
-  "Att 3rd_Tackles",
+  # "Tkl",             # Tackle
+  # "TklW",
+  # "Def 3rd_Tackles",
+  # "Mid 3rd_Tackles",
+  # "Att 3rd_Tackles",
   
-  "Tkl_Challenges",  # Tackle in Dribbling
-  "Att_Challenges",
-  "Tkl_percent_Challenges",
-
-  "Blocks",          # Block
-  "Sh_Blocks",
-  "Pass_Blocks",
+  # "Tkl_Challenges",  # Tackle in Dribbling
+  # "Att_Challenges",
+  # "Tkl_percent_Challenges",
+  # 
+  # "Blocks",          # Block
+  # "Sh_Blocks",
+  # "Pass_Blocks",
   
-  "Int",             # Interception
-  "Clr",             # Cleareance
-  "Err",             # Mistake leading a Shot 
-  "Won_percent_Aerial_Duels",
-  "Recov"            # Ball recoveries
-
+  # "Int",             # Interception
+  # "Clr",             # Cleareance
+  # "Err",             # Mistake leading a Shot 
+  # "Won_percent_Aerial_Duels",
+  # "Recov"            # Ball recoveries
 )
 
 # High correlation (somente vars_ref)
@@ -300,11 +299,11 @@ df_dc <- df_full %>%
   ungroup() %>%
   pivot_wider(
     names_from = side,
-    values_from = -c(Match_Date, Season, home_team, away_team),
+    values_from = -c(Match_Date, Wk, Season, home_team, away_team),
     names_glue = "{.value}_{side}"
   )  %>%
   rename(home_goals = home_goals_home, away_goals = away_goals_home) %>%
-  select(Match_Date, Season, home_team, away_team, home_goals, away_goals,
+  select(Match_Date, Wk, Season, home_team, away_team, home_goals, away_goals,
          starts_with("MA"),
          newly_promoted_team_home, newly_promoted_opp_home,
          newly_promoted_team_away, newly_promoted_opp_away)
@@ -318,6 +317,7 @@ df_dc <- df_full %>%
 
 # Backtest
 results_dc <- backtest_dc(data = df_dc, season_test = "2024/2025")
+results_dc
 
 ##############################################################################
 
@@ -331,7 +331,7 @@ results_dc <- backtest_dc(data = df_dc, season_test = "2024/2025")
 
 df_bivpois <- df_full %>%
   select(
-    Match_Date,
+    Match_Date, Wk,
     season_start,
     home_team = Home_Team,
     away_team = Away_Team,
@@ -339,14 +339,15 @@ df_bivpois <- df_full %>%
     away_goals = Score_A
   ) %>%
   arrange(Match_Date) %>%
-  group_by(Match_Date, season_start, home_team, away_team) %>%
+  group_by(Match_Date, Wk, season_start, home_team, away_team) %>%
   slice(1) %>% ungroup() %>%
   rename(periods = season_start) %>%
-  select(periods, home_team, away_team, home_goals, away_goals, Match_Date) %>%
-  mutate(periods   = factor(periods))
+  select(periods, home_team, away_team, home_goals, away_goals, Match_Date, Wk) %>%
+  mutate(periods = factor(periods))
 
-datas_bivpois = df_bivpois$Match_Date
-df_bivpois <- df_bivpois %>% select(-Match_Date)
+wk_bovpois = (df_bivpois$Wk > 1) & (df_bivpois$periods == 2024)
+datas_bivpois = df_bivpois$Match_Date 
+df_bivpois <- df_bivpois %>% select(-Match_Date, -Wk)
 # df_bivpois <- df_bivpois[1:1520, ] # Test
 
 # Example
@@ -356,31 +357,70 @@ df_bivpois <- df_bivpois %>% select(-Match_Date)
 # pred
 
 # Backtest
-results_bivpois <- backtest_bp_footbayes(data = df_bivpois, season_test = 2024, datas_bivpois)
+results_bivpois <- backtest_bp_footbayes(data = df_bivpois, season_test = 2024, datas_bivpois, wk_bovpois)
 results_bivpois
 
 ##############################################################################
 
 # PARX MODELS
-df_parx <- df_full %>%
-  arrange(Match_Date) 
-
-# Exemplo
-
+df_parx <- df_full %>% arrange(Match_Date) 
 
 #########################
 #_______ MODELOS _______#
 #########################
 
-# PARX Independencia só com MA_SCORE_A de covariavel (De Angelis)
+# PARX sem Variaveis
+results_parx_no_var = backtest_parx(
+  df_parx, "2024/2025",
+  x = NULL,
+  model_name = "PARX NO VARIABLE"
+)
 
-# PARX Independencia com Todas Variáveis
+# PARX só com MA_SCORE_A de covariavel (De Angelis)
+results_parx_MA_score_var = backtest_parx(
+  df_parx, "2024/2025",
+  c(paste0("MA_Score_A")),
+  model_name = "PARX MA_SCORE_A VARIABLES"
+)
 
-# PARX Correlação por Cópulas só com MA_SCORE_A de covariavel
+######################### OTHER VARIABLES
 
-# PARX Correlação por Cópulas com Todas Variáveis
+# PARX só com xG
+results_parx_xg_var = backtest_parx(
+  df_parx, "2024/2025",
+  c("MA_xG_Expected", "MA_xG_Expected_A"),
+  model_name = "PARX xG VARIABLES"
+)
 
+# PARX só com Shots
+results_parx_shots_var = backtest_parx(
+  df_parx, "2024/2025",
+  c("MA_Sh", "MA_Sh_A"),
+  model_name = "PARX Shots VARIABLES"
+)
 
+# PARX só com Cross
+results_parx_cross_var = backtest_parx(
+  df_parx, "2024/2025",
+  c("MA_CrsPA", "MA_CrsPA_A"),
+  model_name = "PARX Cross VARIABLES"
+)
+
+# PARX só com Dummies
+results_parx_dummies_var = backtest_parx(
+  df_parx, "2024/2025",
+  c("newly_promoted_team", "newly_promoted_opp"),
+  model_name = "PARX Dummy VARIABLES"
+)
+
+######################### FINAL
+
+# PARX com Todas Variáveis
+results_parx_all_var = backtest_parx(
+  df_parx, "2024/2025",
+  c(paste0("MA_", vars_all), "newly_promoted_team", "newly_promoted_opp"),
+  model_name = "PARX ALL VARIABLES"
+)
 
 
 

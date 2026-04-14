@@ -17,25 +17,22 @@ library(progress)
 
 # Funções (worldoffootball modificada)
 source("dados/aux_get_data.R")
-seasons = 2020:2025
+seasons = c(2021, 2022, 2025) # 2020:2025
 campeonatos = c(
   # "ENG", 
-  "ESP", 
-  "ITA", 
-  "FRA", 
-  "GER", 
-  "BRA"
+  # "ESP", 
+  "ITA"
 )
 df <- expand.grid(season = seasons, campeonato = campeonatos)
 stats <- c("summary", "passing", "passing_types", "defense" , "possession", "misc", "keeper")
 
 # Loop
-for (i in 17:nrow(df)){
+for (i in 1:nrow(df)){
   
   # Infos
-  i = 6
+  i = 2
   season <- df$season[i]
-  comp <- df$campeonato[i]
+  comp <- as.character(df$campeonato[i])
   cat("\n\n")
   cat(paste0(i, " de ", nrow(df), " - ", comp, " ", season))
   cat("\n\n")
@@ -44,7 +41,7 @@ for (i in 17:nrow(df)){
   
   matches <- data.frame()
   erros = c() 
-  for (i_url in 145:length(urls)){
+  for (i_url in 1:length(urls)){
     
     # Temporadas
     url = urls[i_url]

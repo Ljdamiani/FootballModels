@@ -1,7 +1,7 @@
 
 ########################################################################
 
-# ____________ # DATA SET & ANALISE  # ________________ #
+# ____________ # DATA SET & ANALISIS  # ________________ #
 
 # ___________ Author: Leonardo Damiani _______________ # 
 
@@ -14,7 +14,7 @@ library(lubridate)
 library(extrafont)
 library(gridExtra)
 library(stringr)
-library(robts)
+# library(robts)
 library(forecast)
 library(zoo)
 
@@ -25,10 +25,14 @@ library(zoo)
 loadfonts(device = "win")
 
 # Get Data
-countries <- c("ENG")
+countries <- c(
+  "ENG",
+  "ESP"#,
+  #"ITA"
+)
 Matches_Bakcup <- data.frame()
 for (country in countries){
-  for (ano in 2020:2025){
+  for (ano in 2021:2025){
     load(paste0("dados/matches_", country, "_", ano, ".RData"))
     assign(paste0("matches_", country, "_", ano), matches)
     matches$Season = paste0(ano-1, "/", ano)
@@ -36,7 +40,7 @@ for (country in countries){
   }
 }
 
-# Since 2019 (Season 19/20)
+# Since 2020 (Season 20/21)
 Matches <- Matches_Bakcup %>%
   mutate(
     Wk = str_extract(Matchweek, "(?<=Matchweek )\\d+"),
@@ -55,42 +59,97 @@ Matches <- Matches_Bakcup %>%
     ),
     Match_Date = as.Date(Match_Date)
   ) %>%
-  select(-Matchweek, -Game_URL, -Player_Href, -Min,
-         -Home_Team, -Home_Formation, -Home_Score, -Home_xG, -Home_Goals, -Home_Yellow_Cards, -Home_Red_Cards,
-         -Away_Team, -Away_Formation, -Away_Score, -Away_xG, -Away_Goals, -Away_Yellow_Cards, -Away_Red_Cards) %>%
-  select(Match_Date, League, Wk, Team, Score, ScoreA, everything())
+  select(Match_Date, League, Wk, Home_Team, Away_Team, Home_Score, Away_Score, 
+         Team, Home_Away, Score, ScoreA) %>%
+  group_by(Team) %>%
+  mutate(
+    n = n(),
+    cluster = case_when(
+      n > 160 ~ "No Relegation",
+      n > 130 ~ "4 Seasons",
+      n > 80 ~ "3 Seasons",
+      n > 50 ~ "2 Seasons",
+      T ~ "1 Season"
+    )
+  )
 
-# Calcula as médias de gols concedidos (Parâmetro de Defesa)
-# dados <- concedidosX(seasons_df, rodada_max, c(2, 2))
+Matches_Unique <- Matches %>%
+  group_by(Match_Date, League, Wk, Home_Team, Away_Team, Home_Score, Away_Score) %>%
+  slice(1) %>% ungroup()
 
-# Last Season
-# season = dados[dados$Date >= '2022-08-05', ]
-# rownames(season) <- NULL
+cat(
+  paste0(
+    "Jogos ENG: ", nrow(filter(Matches_Unique, League == "Premier League")), "\n",
+    "Jogos ESP: ", nrow(filter(Matches_Unique, League == "La Liga")), "\n"#,
+    # nrow(filter(Matches_Unique, League == "Serie A"))
+  )
+)
 
 ###################################################################################
 
 # Distribution Teams
-Matches %>%
-  group_by(Team, Home_Away) %>%
-  summarise(n = n(), .groups = "drop") %>%
-  filter(Home_Away == "Home") %>%
-  ggplot(aes(x = n, y = reorder(Team, n))) +
-  geom_col(fill = "#ff6347", color = "white", alpha = 0.8) +
+
+plot_df <- Matches %>% ungroup() %>%
+  mutate(n_total = n_distinct(Team)) %>%
+  group_by(cluster) %>%
+  summarise(
+    n_matches = mean(n),
+    n_teams   = n_distinct(Team),   # ajuste se o nome da variável for outro
+    n_teams_perc = n_teams/first(n_total),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    txt_color = ifelse(n_matches > mean(n_matches), "white", "black"),
+    txt_size = ifelse(n_matches > 50, 5, 3.5)
+  )
+plot_df$n_matches = c(38, 76, 114, 152, 190)
+
+ggplot(plot_df, aes(x = n_matches, y = reorder(cluster, n_matches))) +
+  geom_col(
+    aes(fill = n_matches),
+    color = "black",
+    width = 0.7
+  ) +
+  geom_text(
+    aes(
+      x = n_matches / 2,
+      label = paste0(n_teams, " Teams", " (", round(n_teams_perc, 2)*100, "%)" ),
+      color = txt_color,
+      size = txt_size
+    ),
+    family = "Times",
+  ) +
+  scale_fill_gradient(
+    low  = "grey95",
+    high = "grey20",
+    guide = "none"
+  ) +
   labs(
-    x = "Número de Jogos",
-    y = "",
-    title = "Distribuição de Jogos em Casa"
+    x = "Number of Matches",
+    y = NULL,
+    title = "Distribution of Matches"
   ) +
   theme_classic(base_family = "Times") +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
     axis.text.y = element_text(face = "bold"),
-    axis.title.x = element_text(hjust = 0.5, vjust = -1),
-    plot.title = element_text(size = 16, face = "italic", hjust = 0.5, vjust = 2),
-    plot.margin = margin(10, 30, 10, 10) # espaço pro label fora da barra
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(face = "italic", hjust = 0.5),
+    plot.margin = margin(10, 30, 10, 10)
   ) +
-  scale_x_continuous(expand = expansion(mult = c(0, 0.1)))
+  scale_color_identity() +
+  scale_size_identity() +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.05)))
 
+# Premier
+Matches %>%
+  filter(League == "Premier League") %>%
+  group_by(cluster) %>%
+  summarise(
+    n_matches = mean(n),
+    n_teams   = n_distinct(Team),   # ajuste se o nome da variável for outro
+    .groups = "drop"
+  ) %>%
+  mutate(txt_color = ifelse(n_matches > mean(n_matches), "white", "black"))
 
 ###################################################################################
 

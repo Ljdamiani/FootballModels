@@ -261,45 +261,21 @@ match_urls <- function (country, season_end_year, time_pause = 3)
   # Seasons_Links
   seasons_links <- c(
     
-    # BRA
-    "BRA2020" = "",
-    "BRA2021" = "",
-    "BRA2022" = "",
-    "BRA2023" = "",
-    "BRA2024" = "",
-    "BRA2025" = "",
-    
-    # FRA
-    "FRA2020" = "",
-    "FRA2021" = "",
-    "FRA2022" = "",
-    "FRA2023" = "",
-    "FRA2024" = "",
-    "FRA2025" = "",
-    
-    # GER
-    "GER2020" = "",
-    "GER2021" = "",
-    "GER2022" = "",
-    "GER2023" = "",
-    "GER2024" = "",
-    "GER2025" = "",
-    
     # ITA
     "ITA2020" = "",
-    "ITA2021" = "",
-    "ITA2022" = "",
+    "ITA2021" = "https://web.archive.org/web/20240618070040/https://fbref.com/en/comps/11/2021-2022/2021-2022-Serie-A-Stats",
+    "ITA2022" = "https://web.archive.org/web/20241223081759/https://fbref.com/en/comps/11/2022-2023/2022-2023-Serie-A-Stats",
     "ITA2023" = "",
     "ITA2024" = "",
-    "ITA2025" = "",
+    "ITA2025" = "https://web.archive.org/web/20250811132327/https://fbref.com/en/comps/11/2024-2025/2024-2025-Serie-A-Stats",
     
     # ESP
     "ESP2020" = "",
     "ESP2021" = "",
     "ESP2022" = "",
     "ESP2023" = "",
-    "ESP2024" = "https://web.archive.org/web/20251124154603/https://fbref.com/en/comps/12/2023-2024/schedule/2023-2024-La-Liga-Scores-and-Fixtures",
-    "ESP2025" = "https://web.archive.org/web/20251127155622/https://fbref.com/en/comps/12/2024-2025/schedule/2024-2025-La-Liga-Scores-and-Fixtures",
+    "ESP2024" = "",
+    "ESP2025" = "https://web.archive.org/web/20251001192418/https://fbref.com/en/comps/12/2024-2025/schedule/2024-2025-La-Liga-Scores-and-Fixtures",
     
     # ENG
     "ENG2020" = "https://web.archive.org/web/20240413092138/https://fbref.com/en/comps/9/2019-2020/schedule/2019-2020-Premier-League-Scores-and-Fixtures",
