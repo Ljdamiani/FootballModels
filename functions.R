@@ -156,7 +156,7 @@ fit_parx_team <- function(
 
 #### BACKTEST PARX (INGARCH) ###############
 
-backtest_parx <- function(data, season_test, x_col, model_name){
+backtest_parx_old <- function(data, season_test, x_col, model_name){
   
   # data = df_parx
   # season_test = "2024/2025"
@@ -188,8 +188,13 @@ backtest_parx <- function(data, season_test, x_col, model_name){
   models <- fit_parx_league(train0, x_col)
   results <- list()
   
+<<<<<<< Updated upstream
   for(g in test_games[1:39]){ # length(test_games)]){
+=======
+  for(i in 1:length(test_games)){
+>>>>>>> Stashed changes
     
+    g <- test_games[i]
     date  <- games$Match_Date[g]
     home  <- games$Home_Team[g]
     away  <- games$Away_Team[g]
@@ -271,6 +276,158 @@ backtest_parx <- function(data, season_test, x_col, model_name){
   return(results)
 }
 
+backtest_parx <- function(data, season_test, x_col, model_name){
+  
+  data <- data[order(data$Match_Date), ]
+  
+  # Matches
+  games <- data %>%
+    group_by(Match_Date, Home_Team, Away_Team) %>%
+    slice(1) %>% 
+    ungroup()
+  
+  games$game_id <- seq_len(nrow(games))
+  
+  data <- data %>% 
+    left_join(games[,c("Match_Date","Home_Team","Away_Team","game_id")])
+  
+  test_games <- which((games$Season == season_test) & (as.numeric(games$Wk) > 2))
+  
+  # -----------------------
+  # First Train
+  # -----------------------
+  
+  cat("\n First Train \n")
+  
+  first_game <- test_games[1]
+  first_date <- games$Match_Date[first_game]
+  
+  train0 <- data[data$Match_Date < first_date, ]
+  
+  models <- fit_parx_league(train0, x_col)
+  
+  # pre-allocate
+  results <- vector("list", length(test_games))
+  
+  # -----------------------
+  # LOOP
+  # -----------------------
+  
+  for(i in seq_along(test_games)){
+    
+    g <- test_games[i]
+    
+    date  <- games$Match_Date[g]
+    home  <- games$Home_Team[g]
+    away  <- games$Away_Team[g]
+    
+    cat("\n")
+    cat(home, "x", away, "\n")
+    cat("\n", model_name, "   ", i, " de ", length(test_games), "\n\n")
+    
+    # -----------------------
+    # Rows (mais rápido)
+    # -----------------------
+    
+    idx <- data$game_id == g
+    game_rows <- data[idx, ]
+    
+    row_H <- game_rows[game_rows$Home_Away == "Home", ]
+    row_A <- game_rows[game_rows$Home_Away == "Away", ]
+    
+    # -----------------------
+    # Prediction
+    # -----------------------
+    
+    lambda_H <- predict_parx(
+      models[[paste0(home,"_H")]],
+      row_H[,x_col,drop=FALSE]
+    )
+    
+    lambda_A <- predict_parx(
+      models[[paste0(away,"_A")]],
+      row_A[,x_col,drop=FALSE]
+    )
+    
+    # -----------------------
+    # Independence
+    # -----------------------
+    
+    prob_ind <- outer(dpois(0:7, lambda_H), dpois(0:7, lambda_A))
+    
+    PH <- sum(prob_ind[lower.tri(prob_ind)])
+    PD <- sum(diag(prob_ind))
+    PA <- sum(prob_ind[upper.tri(prob_ind)])
+    
+    prob_ind_df <- data.frame(
+      Home = home,
+      Away = away,
+      PH = PH,
+      PD = PD,
+      PA = PA,
+      Date = date
+    )
+    
+    # -----------------------
+    # Copula
+    # -----------------------
+    
+    train <- data[data$game_id < g, ]
+    
+    res <- compute_parx_residuals(train, models)
+    
+    cop <- estimate_parx_copula(res)
+    
+    prob_cop <- predict_parx_copula(lambda_H, lambda_A, cop$model)
+    
+    PH_COP <- sum(prob_cop[lower.tri(prob_cop)])
+    PD_COP <- sum(diag(prob_cop))
+    PA_COP <- sum(prob_cop[upper.tri(prob_cop)])
+    
+    prob_cop_df <- data.frame(
+      Home = home,
+      Away = away,
+      PH = PH_COP,
+      PD = PD_COP,
+      PA = PA_COP,
+      Date = date
+    )
+    
+    # -----------------------
+    # Save
+    # -----------------------
+    
+    results[[i]] <- list(
+      models = models,
+      date = date,
+      home = home,
+      away = away,
+      lambda_H = lambda_H,
+      lambda_A = lambda_A,
+      prob_ind = prob_ind_df,
+      prob_cop = prob_cop_df,
+      copula = cop$name,
+      copula_model = cop$model
+    )
+    
+    # -----------------------
+    # Update
+    # -----------------------
+    
+    train_full <- data[data$game_id <= g, ]
+    
+    models <- update_parx_models(
+      models,
+      train_full,
+      home,
+      away,
+      x_col
+    )
+  }
+  
+  return(results)
+}
+
 fit_parx_league <- function(
     data,
     x_col,
@@ -311,7 +468,7 @@ fit_parx_league <- function(
   return(models)
 }
 
-update_parx_models <- function(
+update_parx_models_old <- function(
     models,
     data,
     home,
@@ -339,6 +496,49 @@ update_parx_models <- function(
   y <- dA[[y_col]]
   x <- if(!is.null(x_col)) as.matrix(dA[,x_col]) else NULL
   models[[paste0(away,"_A")]] <- fit_parx_team(y, x, p_max, q_max)
+  
+  return(models)
+}
+
+update_parx_models <- function(
+    models,
+    data,
+    home,
+    away,
+    x_col = NULL,
+    p_max = 3,
+    q_max = 3
+){
+  
+  cat("\n ===> UPDATE MODELS \n")
+  
+  y_col <- "Score"
+  
+  # HOME
+  cat("\n Home - ", home, "\n")
+  
+  idxH <- (data$Team == home) & (data$Home_Away == "Home")
+  
+  dH <- data[idxH, ]
+  
+  y <- dH[[y_col]]
+  x <- if(!is.null(x_col)) as.matrix(dH[,x_col]) else NULL
+  
+  models[[paste0(home,"_H")]] <- 
+    fit_parx_team(y, x, p_max, q_max)
+  
+  # AWAY
+  cat("\n Away - ", away, "\n")
+  
+  idxA <- (data$Team == away) & (data$Home_Away == "Away")
+  
+  dA <- data[idxA, ]
+  
+  y <- dA[[y_col]]
+  x <- if(!is.null(x_col)) as.matrix(dA[,x_col]) else NULL
+  
+  models[[paste0(away,"_A")]] <- 
+    fit_parx_team(y, x, p_max, q_max)
   
   return(models)
 }
