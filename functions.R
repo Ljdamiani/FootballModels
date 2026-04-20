@@ -188,7 +188,7 @@ backtest_parx <- function(data, season_test, x_col, model_name){
   models <- fit_parx_league(train0, x_col)
   results <- list()
   
-  for(g in test_games[39:length(test_games)]){
+  for(g in test_games[1:39]){ # length(test_games)]){
     
     date  <- games$Match_Date[g]
     home  <- games$Home_Team[g]

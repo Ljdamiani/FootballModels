@@ -22,6 +22,7 @@ library(zoo)
 library(slider)
 library(TTR)
 library(caret)
+library(qs2)
 
 # Packages Football
 # pkgbuild::check_build_tools(debug = TRUE)
@@ -37,7 +38,7 @@ source("functions.R")
 ###################################################################################
 
 # Get Data
-countries <- c("ENG")
+countries <- c("ESP")
 Matches_Bakcup <- data.frame()
 for (country in countries){
   for (ano in 2020:2025){
@@ -274,7 +275,7 @@ df_means <- df_means %>%
 ##############################################################################
 
 #################### ----------------------------------- #####################
-#################### ______________ MODELOS ____________ #####################
+#################### ______________ MODELS _____________ #####################
 #################### ------------------------------------#####################
 
 # 5 Seasons
@@ -365,32 +366,35 @@ results_bivpois
 # PARX MODELS
 df_parx <- df_full %>% arrange(Match_Date) 
 
-#########################
-#_______ MODELOS _______#
-#########################
+######################### MAIN MODELS
 
 # PARX sem Variaveis
-results_parx_no_var = backtest_parx(
+results_parx_no_var2 = backtest_parx(
   df_parx, "2024/2025",
   x = NULL,
   model_name = "PARX NO VARIABLE"
 )
+qs_save(results_parx_no_var2, paste0("models//", countries, "_no_var2.qs2"))
+results_parx_no_var <- qs_read(paste0("models//", countries, "_no_var.qs2"))
 
 # PARX só com MA_SCORE_A de covariavel (De Angelis)
-results_parx_MA_score_var = backtest_parx(
+results_parx_MA_score_var2 = backtest_parx(
   df_parx, "2024/2025",
   c(paste0("MA_Score_A")),
   model_name = "PARX MA_SCORE_A VARIABLES"
 )
+qs_save(results_parx_MA_score_var2, paste0("models//", countries, "_ma_score2.qs2"))
+# results_parx_MA_score_var <- qs_read(paste0("models//", countries, "_ma_score.qs2"))
 
 ######################### OTHER VARIABLES
 
 # PARX só com xG
-results_parx_xg_var = backtest_parx(
+results_parx_xg_var2 = backtest_parx(
   df_parx, "2024/2025",
   c("MA_xG_Expected", "MA_xG_Expected_A"),
   model_name = "PARX xG VARIABLES"
 )
+qs_save(results_parx_xg_var2, paste0("models//", countries, "_xg2.qs2"))
 
 # PARX só com Shots
 results_parx_shots_var = backtest_parx(
@@ -398,6 +402,7 @@ results_parx_shots_var = backtest_parx(
   c("MA_Sh", "MA_Sh_A"),
   model_name = "PARX Shots VARIABLES"
 )
+qs_save(results_parx_shots_var, paste0("models//", countries, "_shots.qs2"))
 
 # PARX só com Cross
 results_parx_cross_var = backtest_parx(
@@ -405,6 +410,7 @@ results_parx_cross_var = backtest_parx(
   c("MA_CrsPA", "MA_CrsPA_A"),
   model_name = "PARX Cross VARIABLES"
 )
+qs_save(results_parx_cross_var, paste0("models//", countries, "_cross.qs2"))
 
 # PARX só com Dummies
 results_parx_dummies_var = backtest_parx(
@@ -412,8 +418,9 @@ results_parx_dummies_var = backtest_parx(
   c("newly_promoted_team", "newly_promoted_opp"),
   model_name = "PARX Dummy VARIABLES"
 )
+qs_save(results_parx_dummies_var, paste0("models//", countries, "_dummies.qs2"))
 
-######################### FINAL
+######################### ALL
 
 # PARX com Todas Variáveis
 results_parx_all_var = backtest_parx(
@@ -421,31 +428,12 @@ results_parx_all_var = backtest_parx(
   c(paste0("MA_", vars_all), "newly_promoted_team", "newly_promoted_opp"),
   model_name = "PARX ALL VARIABLES"
 )
+qs_save(results_parx_all_var, paste0("models//", countries, "_all.qs2"))
 
 
 
 
 
 
-
-
-
-
-
-
-
-###########################################################################
-
-# Salvas as probs das rodadas
-probs <- list()
-probs[['Identidade Sem Cov']] = list(probs_I_semx, probs_I_semx_cop)
-probs[['Identidade']] = list(probs_I, probs_I_cop)
-probs[['Log Sem Cov']] = list(probs_log_semx, probs_log_semx_cop)
-probs[['Log']] = list(probs_log, probs_log_cop)
-
-probs_rodada[[paste('rodada', '20')]] <- probs
-#csave.image("dados/models_probs.RData")
-
-# rm(list=setdiff(ls(),c('rslts_38', 'rslts_38_sem_x')))
 
 
