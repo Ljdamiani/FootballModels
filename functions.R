@@ -40,10 +40,11 @@ EMA_lag <- function(x, alpha) {
 fit_parx_team <- function(
     y,
     x = NULL,
-    p_max = 2,
-    q_max = 2,
+    p_max = 3,
+    q_max = 3,
     links = c("identity", "log"),
-    distr = "poisson"
+    distr = "poisson",
+    previous_model = NULL
 ){
   
   # -------------------------
@@ -58,18 +59,14 @@ fit_parx_team <- function(
     xmax <- apply(x, 2, max, na.rm = TRUE)
     range <- xmax - xmin
     
-    # detectar dummies (0/1)
     is_dummy <- apply(x, 2, function(v){
       vals <- unique(na.omit(v))
       all(vals %in% c(0,1))
     })
     
-    # evitar divisão por zero
     range[range == 0] <- 1
     
-    # escalar apenas não dummies
     for(j in seq_len(ncol(x))){
-      
       if(!is_dummy[j]){
         x[,j] <- (x[,j] - xmin[j]) / range[j]
       }
@@ -90,6 +87,7 @@ fit_parx_team <- function(
     q = 0:q_max,
     link = links
   )
+  grid <- grid[!(grid$p > 0 & grid$q == 0), ] # 
   
   best_model <- NULL
   best_aic <- Inf
@@ -100,32 +98,101 @@ fit_parx_team <- function(
     p <- grid$p[g]
     q <- grid$q[g]
     link <- as.character(grid$link[g])
+    
     cat(paste("\n p =", p, " q =", q, " ", link))
     
     model_list <- list()
     if(q > 0) model_list$past_obs  <- 1:q
     if(p > 0) model_list$past_mean <- 1:p
     
-    fit <- try(
-      tsglm(
-        y,
-        xreg = x,
-        distr = distr,
-        link = link,
-        model = model_list
-      ),
-      silent = TRUE
-    )
+    # -------------------------
+    # INIT DO MODELO ANTERIOR
+    # -------------------------
+    
+    start_vals <- NULL
+    
+    if(!is.null(previous_model)){
+      start_vals <- make_start_from_previous(
+        previous_model,
+        model_list,
+        x
+      )
+    }
+    
+    if(is.null(start_vals)){
+      start_vals <- list(method="GLM")
+    }
+    
+    if(p == 0 && q == 0){
+      
+      fit <- try({
+        
+        if(is.null(x)){
+          
+          glm(
+            y ~ 1,
+            family = poisson(link = link)
+          )
+          
+        } else{
+          
+          glm(
+            y ~ x,
+            family = poisson(link = link)
+          )
+          
+        }
+        
+      }, silent = TRUE)
+      
+      if(inherits(fit, "try-error")){
+        fit <- NULL
+      }
+      
+    } else{
+      
+      fit <- try(
+        tsglm(
+          y,
+          xreg = x,
+          distr = distr,
+          link = link,
+          model = model_list,
+          
+          info = "none",
+          score = FALSE,
+          
+          start.control = list(
+            method = if(is.null(start_vals)) "GLM" else "fixed"
+          ),
+          
+          final.control = list(
+            optim.method = "BFGS",
+            optim.control = list(
+              maxit = 40,
+              reltol = 1e-5
+            )
+          )
+        ),
+        silent = TRUE
+      )
+      
+      if(inherits(fit,"try-error")){
+        fit <- NULL
+      }
+    }
     
     aic <- try(AIC(fit), silent = TRUE)
     
     if(!inherits(fit,"try-error") && is.finite(aic)){
       
       cat(paste("   ", round(aic, 3)))
+      
       if(aic < best_aic){
         
         best_aic <- aic
         best_model <- fit
+        
         best_spec <- list(
           p = p,
           q = q,
@@ -137,18 +204,21 @@ fit_parx_team <- function(
     }
   }
   
-  cat(paste("\n \n  BEST - p =", best_spec$p, " q =", best_spec$q, " ", best_spec$link, " ", best_spec$AIC, "\n"))
-
-  # -------------------------
-  # SAVE SCALING
-  # -------------------------
+  cat(paste(
+    "\n \n  BEST - p =", best_spec$p,
+    " q =", best_spec$q,
+    " ", best_spec$link,
+    " ", best_spec$AIC, "\n"
+  ))
   
   attr(best_model,"scaling") <- list(
     min = xmin,
     max = xmax
   )
+  
   attr(best_model,"is_dummy") <- is_dummy
   attr(best_model,"best_spec") <- best_spec
+  
   return(best_model)
 }
 
@@ -156,124 +226,12 @@ fit_parx_team <- function(
 
 #### BACKTEST PARX (INGARCH) ###############
 
-backtest_parx_old <- function(data, season_test, x_col, model_name){
+backtest_parx <- function(data, season_test, x_col, model_name){
   
   # data = df_parx
   # season_test = "2024/2025"
-  # x_col = c(paste0("MA_", vars_all), "newly_promoted_team", "newly_promoted_opp")
-  # model_name = "PARX ALL VARIABLES"
-  
-  data = df_parx
-  # season_test = "2024/2025"
-  # x_col = c(paste0("MA_Score_A"))
-  # model_name = "PARX MA_SCORE_A VARIABLES"
-  
-  data <- data[order(data$Match_Date), ]
-  
-  # Matches
-  games <- data %>%
-    group_by(Match_Date, Home_Team, Away_Team) %>%
-    slice(1) %>% ungroup()
-  
-  test_games <- which((games$Season == season_test) & (as.numeric(games$Wk) > 2))
-  
-  games$game_id <- 1:nrow(games)
-  data <- data %>% left_join(select(games, Match_Date, Home_Team, Away_Team, game_id)) %>%
-    suppressMessages()
-  
-  # First Train
-  cat("\n First Train \n")
-  first_game <- test_games[1]
-  train0 <- data[data$Match_Date < games$Match_Date[first_game], ]
-  models <- fit_parx_league(train0, x_col)
-  results <- list()
-  
-  #for(g in test_games[1:39]){ # length(test_games)]){
-  for(i in 1:length(test_games)){
-
-    g <- test_games[i]
-    date  <- games$Match_Date[g]
-    home  <- games$Home_Team[g]
-    away  <- games$Away_Team[g]
-    
-    cat(paste0("\n"))
-    cat(home, "x", away, "\n")
-    cat("\n", model_name, "   ", which(test_games==g), " de ", length(test_games), "\n")
-    cat(paste0("\n"))
-    
-    # Home and Away  (Rows)
-    game_rows <- data[data$Match_Date == date & data$Home_Team == home & data$Away_Team == away, ]
-    row_H <- game_rows[game_rows$Home_Away == "Home", ]
-    row_A <- game_rows[game_rows$Home_Away == "Away", ]
-    
-    # -----------------------
-    # 1 Prediction
-    # -----------------------
-    
-    lambda_H <- predict_parx(models[[paste0(home,"_H")]], row_H[,x_col,drop=FALSE])
-    lambda_A <- predict_parx(models[[paste0(away,"_A")]], row_A[,x_col,drop=FALSE])
-    
-    # -----------------------
-    # 2 Independence
-    # -----------------------
-    
-    prob_ind <- outer(dpois(0:7, lambda_H), dpois(0:7, lambda_A))
-    rownames(prob_ind) <- 0:7
-    colnames(prob_ind) <- 0:7
-    
-    PH <- sum(prob_ind[lower.tri(prob_ind)])
-    PD <- sum(diag(prob_ind))
-    PA <- sum(prob_ind[upper.tri(prob_ind)])
-    
-    prob_ind_df <- data.frame(Home = home, Away = away, PH = PH, PD = PD, PA = PA, Date = date)
-    
-    # -----------------------
-    # 3 Copula
-    # -----------------------
-    
-    train <- data[data$Match_Date < date, ]
-    res <- compute_parx_residuals(train, models)
-    cop <- estimate_parx_copula(res)
-    
-    prob_cop <- predict_parx_copula(lambda_H, lambda_A, cop$model)
-    rownames(prob_cop) <- 0:7
-    colnames(prob_cop) <- 0:7
-    
-    PH_COP <- sum(prob_cop[lower.tri(prob_cop)])
-    PD_COP <- sum(diag(prob_cop))
-    PA_COP <- sum(prob_cop[upper.tri(prob_cop)])
-    
-    prob_cop_df <- data.frame(Home = home, Away = away, PH = PH_COP, PD = PD_COP, PA = PA_COP, Date = date)
-    
-    # -----------------------
-    # 4 Save
-    # -----------------------
-    
-    results[[g - test_games[1] + 1]] <- list(
-      models = models,
-      date = date,
-      home = home,
-      away = away,
-      lambda_H = lambda_H,
-      lambda_A = lambda_A,
-      prob_ind = prob_ind_df,
-      prob_cop = prob_cop_df,
-      copula = cop$name,
-      copula_model = cop$model
-    )
-    
-    # -----------------------
-    # Update Model
-    # -----------------------
-    
-    train_full <- data[data$game_id <= g, ]
-    models <- update_parx_models(models, train_full, home, away, x_col)
-  }
-  
-  return(results)
-}
-
-backtest_parx <- function(data, season_test, x_col, model_name){
+  # x_col = c("MA_CrsPA", "MA_CrsPA_A")
+  # model_name = "PARX Cross VARIABLES"
   
   data <- data[order(data$Match_Date), ]
   
@@ -295,10 +253,7 @@ backtest_parx <- function(data, season_test, x_col, model_name){
   # -----------------------
   
   cat("\n First Train \n")
-  
-  first_game <- test_games[1]
-  first_date <- games$Match_Date[first_game]
-  
+  first_game <- games$Match_Date[test_games[1]]
   train0 <- data[data$Match_Date < first_date, ]
   
   models <- fit_parx_league(train0, x_col)
@@ -310,8 +265,8 @@ backtest_parx <- function(data, season_test, x_col, model_name){
   # LOOP
   # -----------------------
   
-  for(i in seq_along(test_games)){
-    
+  for(i in 1:length(test_games)){
+
     g <- test_games[i]
     
     date  <- games$Match_Date[g]
@@ -433,10 +388,9 @@ fit_parx_league <- function(
 ){
   
   # data = train0
-  # y_col = "Score"
-  # x_col = c(paste0("MA_", vars_all), "newly_promoted_team", "newly_promoted_opp")
   # p_max = 3
   # q_max = 3
+  
   y_col = "Score"
   teams <- unique(data$Team)
   models <- list()
@@ -465,38 +419,6 @@ fit_parx_league <- function(
   return(models)
 }
 
-update_parx_models_old <- function(
-    models,
-    data,
-    home,
-    away,
-    x_col = NULL,
-    p_max = 3,
-    q_max = 3
-){
-  
-  cat(paste0("\n ===> UPDATE MODELS \n"))
-  y_col = "Score"
-  
-  cat(paste0("\n Home - ", home, "\n"))
-  
-  # HOME team update
-  dH <- data[(data$Team == home)&(data$Home_Away == "Home"), ]
-  y <- dH[[y_col]]
-  x <- if(!is.null(x_col)) as.matrix(dH[,x_col]) else NULL
-  models[[paste0(home,"_H")]] <- fit_parx_team(y, x, p_max, q_max)
-  
-  cat(paste0("\n Away - ", away, "\n"))
-  
-  # AWAY team update
-  dA <- data[(data$Team == away)&(data$Home_Away == "Away"), ]
-  y <- dA[[y_col]]
-  x <- if(!is.null(x_col)) as.matrix(dA[,x_col]) else NULL
-  models[[paste0(away,"_A")]] <- fit_parx_team(y, x, p_max, q_max)
-  
-  return(models)
-}
-
 update_parx_models <- function(
     models,
     data,
@@ -507,37 +429,92 @@ update_parx_models <- function(
     q_max = 3
 ){
   
+  # data = train_full
+  
   cat("\n ===> UPDATE MODELS \n")
   
   y_col <- "Score"
   
+  # =========================
   # HOME
+  # =========================
+  
   cat("\n Home - ", home, "\n")
   
   idxH <- (data$Team == home) & (data$Home_Away == "Home")
-  
   dH <- data[idxH, ]
   
   y <- dH[[y_col]]
   x <- if(!is.null(x_col)) as.matrix(dH[,x_col]) else NULL
   
-  models[[paste0(home,"_H")]] <- 
-    fit_parx_team(y, x, p_max, q_max)
+  model_name_H <- paste0(home,"_H")
+  previous_model <- models[[model_name_H]]
   
+  models[[model_name_H]] <- fit_parx_team(
+    y,
+    x,
+    p_max,
+    q_max,
+    previous_model = previous_model
+  )
+  
+  # =========================
   # AWAY
+  # =========================
+  
   cat("\n Away - ", away, "\n")
   
   idxA <- (data$Team == away) & (data$Home_Away == "Away")
-  
   dA <- data[idxA, ]
   
   y <- dA[[y_col]]
   x <- if(!is.null(x_col)) as.matrix(dA[,x_col]) else NULL
   
-  models[[paste0(away,"_A")]] <- 
-    fit_parx_team(y, x, p_max, q_max)
+  model_name_A <- paste0(away,"_A")
+  
+  previous_model <- models[[model_name_A]]
+  
+  models[[model_name_A]] <- fit_parx_team(
+    y,
+    x,
+    p_max,
+    q_max,
+    previous_model = previous_model
+  )
   
   return(models)
+}
+
+make_start_from_previous <- function(old_fit, new_model, xreg){
+  
+  cf <- coef(old_fit)
+  
+  k_past_obs  <- length(new_model$past_obs)
+  k_past_mean <- length(new_model$past_mean)
+  k_xreg      <- if(is.null(xreg)) 0 else ncol(xreg)
+  
+  start <- list(method = "fixed")
+  
+  i <- 1
+  
+  start$intercept <- cf[i]
+  i <- i + 1
+  
+  if(k_past_obs > 0){
+    start$past_obs <- cf[i:(i + k_past_obs - 1)]
+    i <- i + k_past_obs
+  }
+  
+  if(k_past_mean > 0){
+    start$past_mean <- cf[i:(i + k_past_mean - 1)]
+    i <- i + k_past_mean
+  }
+  
+  if(k_xreg > 0){
+    start$xreg <- cf[i:(i + k_xreg - 1)]
+  }
+  
+  return(start)
 }
 
 ##################################################################################
@@ -717,6 +694,10 @@ predict_parx <- function(model, newx){
   scaling  <- attr(model, "scaling")
   is_dummy <- attr(model, "is_dummy")
   
+  # -------------------------
+  # SCALE NEWX
+  # -------------------------
+  
   if(!is.null(newx)){
     
     newx <- as.matrix(newx)
@@ -736,7 +717,38 @@ predict_parx <- function(model, newx){
     }
   }
   
-  predict(model, n.ahead=1, newxreg=newx)$pred
+  # -------------------------
+  # GLM (1-step ahead)
+  # -------------------------
+  
+  if(inherits(model, "glm")){
+    
+    if(is.null(newx)){
+      return(as.numeric(predict(model, type="response")[1]))
+    }
+    
+    newdata <- data.frame(x = I(as.matrix(newx)))
+    
+    return(
+      as.numeric(
+        predict(
+          model,
+          newdata = newdata,
+          type = "response"
+        )
+      )
+    )
+  }
+  
+  # -------------------------
+  # TSGLM (1-step ahead)
+  # -------------------------
+  
+  predict(
+    model,
+    n.ahead = 1,
+    newxreg = newx
+  )$pred
 }
 
 predict_parx_copula <- function(lambda_H, lambda_A, copula_fit){

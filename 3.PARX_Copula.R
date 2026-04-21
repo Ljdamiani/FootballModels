@@ -282,6 +282,8 @@ df_means <- df_means %>%
 df_full <- df_means %>% filter(Season != "2019/2020")
 
 ##############################################################################
+##############################################################################
+##############################################################################
 
 # DIXEN & COLES (1997)
 # lambda = attack - defense + home + Xbeta
@@ -320,6 +322,8 @@ df_dc <- df_full %>%
 results_dc <- backtest_dc(data = df_dc, season_test = "2024/2025")
 qs_save(results_dc, paste0("models//", countries, "_dc.qs2"))
 
+##############################################################################
+##############################################################################
 ##############################################################################
 
 # BIVARIATE POISSON (2003)
@@ -360,9 +364,22 @@ df_bivpois <- df_bivpois %>% select(-Match_Date, -Wk)
 results_bivpois <- backtest_bp_footbayes(data = df_bivpois, season_test = 2024, datas_bivpois, wk_bovpois)
 qs_save(results_bivpois, paste0("models//", countries, "_bivpois.qs2"))
 
+
+##############################################################################
+##############################################################################
 ##############################################################################
 
-# PARX MODELS
+
+
+
+##############################################################################
+
+#################### ----------------------------------- #####################
+############### ______________ PARX MODELS _____________ #####################
+#################### ------------------------------------#####################
+
+##############################################################################
+
 df_parx <- df_full %>% arrange(Match_Date) 
 aux_matches <- df_full %>%
   group_by(Match_Date, Home_Team, Away_Team) %>%
@@ -382,6 +399,9 @@ aux_matches <- df_full %>%
   )
 qs_save(aux_matches, paste0("models//", countries, "_matches.qs2"))
 
+
+
+
 ######################### MAIN MODELS
 
 # PARX sem Variaveis
@@ -400,15 +420,19 @@ results_parx_MA_score_var = backtest_parx(
 )
 qs_save(results_parx_MA_score_var, paste0("models//", countries, "_ma_score.qs2"))
 
-######################### OTHER VARIABLES
+
+
+
+
+######################### SINGLES VARIABLES
 
 # PARX só com xG
-results_parx_xg_var2 = backtest_parx(
+results_parx_xg_var = backtest_parx(
   df_parx, "2024/2025",
   c("MA_xG_Expected", "MA_xG_Expected_A"),
   model_name = "PARX xG VARIABLES"
 )
-qs_save(results_parx_xg_var2, paste0("models//", countries, "_xg2.qs2"))
+qs_save(results_parx_xg_var, paste0("models//", countries, "_xg.qs2"))
 
 # PARX só com Shots
 results_parx_shots_var = backtest_parx(
@@ -433,6 +457,11 @@ results_parx_dummies_var = backtest_parx(
   model_name = "PARX Dummy VARIABLES"
 )
 qs_save(results_parx_dummies_var, paste0("models//", countries, "_dummies.qs2"))
+
+
+
+
+
 
 ######################### ALL
 
