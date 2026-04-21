@@ -38,7 +38,7 @@ source("functions.R")
 ###################################################################################
 
 # Get Data
-countries <- c("ESP")
+countries <- c("ENG")
 Matches_Bakcup <- data.frame()
 for (country in countries){
   for (ano in 2020:2025){
@@ -318,7 +318,7 @@ df_dc <- df_full %>%
 
 # Backtest
 results_dc <- backtest_dc(data = df_dc, season_test = "2024/2025")
-results_dc
+qs_save(results_dc, paste0("models//", countries, "_dc.qs2"))
 
 ##############################################################################
 
@@ -346,10 +346,9 @@ df_bivpois <- df_full %>%
   select(periods, home_team, away_team, home_goals, away_goals, Match_Date, Wk) %>%
   mutate(periods = factor(periods))
 
-wk_bovpois = (df_bivpois$Wk > 1) & (df_bivpois$periods == 2024)
+wk_bovpois = (as.numeric(df_bivpois$Wk) > 2) & (df_bivpois$periods == 2024)
 datas_bivpois = df_bivpois$Match_Date 
 df_bivpois <- df_bivpois %>% select(-Match_Date, -Wk)
-# df_bivpois <- df_bivpois[1:1520, ] # Test
 
 # Example
 # model_bivpois <- fit_bp_footbayes(df_bivpois)
@@ -359,32 +358,47 @@ df_bivpois <- df_bivpois %>% select(-Match_Date, -Wk)
 
 # Backtest
 results_bivpois <- backtest_bp_footbayes(data = df_bivpois, season_test = 2024, datas_bivpois, wk_bovpois)
-results_bivpois
+qs_save(results_bivpois, paste0("models//", countries, "_bivpois.qs2"))
 
 ##############################################################################
 
 # PARX MODELS
 df_parx <- df_full %>% arrange(Match_Date) 
+aux_matches <- df_full %>%
+  group_by(Match_Date, Home_Team, Away_Team) %>%
+  mutate(result = case_when(
+    Score > Score_A ~ "H",
+    Score < Score_A ~ "H",
+    T ~ "D"
+  )) %>%
+  slice(1) %>% 
+  ungroup() %>%
+  filter((Season == "2024/2025") & (as.numeric(Wk) > 2)) %>%
+  select(
+    Date = Match_Date, 
+    Home = Home_Team, 
+    Away = Away_Team,
+    result
+  )
+qs_save(aux_matches, paste0("models//", countries, "_matches.qs2"))
 
 ######################### MAIN MODELS
 
 # PARX sem Variaveis
-results_parx_no_var2 = backtest_parx(
+results_parx_no_var = backtest_parx(
   df_parx, "2024/2025",
   x = NULL,
   model_name = "PARX NO VARIABLE"
 )
-qs_save(results_parx_no_var2, paste0("models//", countries, "_no_var2.qs2"))
-results_parx_no_var <- qs_read(paste0("models//", countries, "_no_var.qs2"))
+qs_save(results_parx_no_var, paste0("models//", countries, "_no_var.qs2"))
 
 # PARX só com MA_SCORE_A de covariavel (De Angelis)
-results_parx_MA_score_var2 = backtest_parx(
+results_parx_MA_score_var = backtest_parx(
   df_parx, "2024/2025",
   c(paste0("MA_Score_A")),
   model_name = "PARX MA_SCORE_A VARIABLES"
 )
-qs_save(results_parx_MA_score_var2, paste0("models//", countries, "_ma_score2.qs2"))
-# results_parx_MA_score_var <- qs_read(paste0("models//", countries, "_ma_score.qs2"))
+qs_save(results_parx_MA_score_var, paste0("models//", countries, "_ma_score.qs2"))
 
 ######################### OTHER VARIABLES
 

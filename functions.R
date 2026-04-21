@@ -188,12 +188,9 @@ backtest_parx_old <- function(data, season_test, x_col, model_name){
   models <- fit_parx_league(train0, x_col)
   results <- list()
   
-<<<<<<< Updated upstream
-  for(g in test_games[1:39]){ # length(test_games)]){
-=======
+  #for(g in test_games[1:39]){ # length(test_games)]){
   for(i in 1:length(test_games)){
->>>>>>> Stashed changes
-    
+
     g <- test_games[i]
     date  <- games$Match_Date[g]
     home  <- games$Home_Team[g]

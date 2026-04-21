@@ -8,58 +8,72 @@
 ####################################################
 
 # Packages
+library(qs2)
+library(purrr)
 library(measures)
 library(mlr3measures)
 
-# Probs
+###############################
+#_______     MODELS    _______#
+###############################
 
-##################################################################
-#_______ Junta Rodadas _______##_______ Probs por Modelos _______#
-##################################################################
+# ENG
+matches_ENG <- qs_read(paste0("models//ENG_matches.qs2"))
+results_ENG_dc <- qs_read(paste0("models//ENG_dc.qs2"))
+# results_ENG_bivpois <- qs_read(paste0("models//ENG_bivpois.qs2"))
 
-rodadas = data.frame()
-probs_I_semx = data.frame()
-probs_I_semx_cop = data.frame()
-probs_I = data.frame()
-probs_I_cop = data.frame()
-probs_log_semx = data.frame()
-probs_log_semx_cop = data.frame()
-probs_log = data.frame()
-probs_log_cop = data.frame()
-probs_mix = data.frame()
-probs_mix_cop = data.frame()
+models_ENG_no_var <- qs_read(paste0("models//ENG_no_var.qs2"))
+models_ENG_ma_score <- qs_read(paste0("models//ENG_ma_score.qs2"))
+models_ENG_xg <- qs_read(paste0("models//ENG_xg.qs2"))
+models_ENG_shots <- qs_read(paste0("models//ENG_shots.qs2"))
 
-wks = c(24, 25, 26, 27, 28, 29, 
-        30, 31, 32, 33, 34, 35, 36, 37, 38)
+# ESP
+models_ESP_no_var <- qs_read(paste0("models//ESP_no_var.qs2"))
+models_ESP_ma_score <- qs_read(paste0("models//ESP_ma_score.qs2"))
 
-for (i in 1:length(probs_rodada)){
+# ITA
+
+
+# models_ESP_ma_score2 <- qs_read(paste0("models//ESP_ma_score2.qs2"))
+# teste <- c(models_ESP_ma_score2, models_ESP_ma_score[40:length(models_ESP_ma_score)])
+# qs_save(teste, paste0("models//ESP_ma_score.qs2"))
+
+
+################################
+#_______   JOIN MODELS  _______#
+################################
+
+cols = c("Date", "Home", "Away")
+
+# ENG
+matches_ENG_models <- matches_ENG %>%
+  left_join(results_ENG_dc %>% rename_with(~ paste0(.x, "_dc"), -all_of(cols)), by = cols) %>%
   
-  probs <- probs_rodada[[i]]
+  # No X
+  left_join(map_dfr(models_ENG_no_var, ~ .x$prob_ind) %>%
+              mutate(copula = map_vec(models_ENG_no_var, ~ .x$copula)) %>%
+              rename_with(~ paste0(.x, "_novar_ind"), -all_of(cols)), by = cols) %>%
   
-  # Rodada
-  aux_rodada = probs$`Identidade Sem Cov`[[1]][, 1:4]
-  aux_rodada['Wk'] = wks[i]
-  
-  rodadas = rbind(rodadas, aux_rodada)
-  
-  # Probs
-  probs_I_semx = rbind(probs_I_semx, 
-                       probs$`Identidade Sem Cov`[[1]][c('pVM', 'pE', 'pVV')])
-  probs_I_semx_cop = rbind(probs_I_semx_cop, 
-                           probs$`Identidade Sem Cov`[[2]][c('pVM', 'pE', 'pVV')])
-  probs_I = rbind(probs_I, probs$Identidade[[1]][c('pVM', 'pE', 'pVV')])
-  probs_I_cop = rbind(probs_I_cop, probs$Identidade[[2]][c('pVM', 'pE', 'pVV')])
-  probs_log_semx = rbind(probs_log_semx, probs$`Log Sem Cov`[[1]][c('pVM', 'pE', 'pVV')])
-  probs_log_semx_cop = rbind(probs_log_semx_cop, 
-                             probs$`Log Sem Cov`[[2]][c('pVM', 'pE', 'pVV')])
-  probs_log = rbind(probs_log, probs$Log[[1]][c('pVM', 'pE', 'pVV')])
-  probs_log_cop = rbind(probs_log_cop, probs$Log[[2]][c('pVM', 'pE', 'pVV')])
-  probs_mix = rbind(probs_mix, probs$Mix[[1]][c('pVM', 'pE', 'pVV')])
-  probs_mix_cop = rbind(probs_mix_cop, probs$Mix[[2]][c('pVM', 'pE', 'pVV')])
-  
-}
+  left_join(map_dfr(models_ENG_no_var, ~ .x$prob_cop) %>% 
+              rename_with(~ paste0(.x, "_novar_cop"), -all_of(cols)), by = cols)
 
 
+
+###############################
+#_______   PARAMETERS  _______#
+###############################
+
+
+
+###############################
+#_______     COPULA    _______#
+###############################
+
+
+
+###############################
+#_______     PROBS     _______#
+###############################
 
 # Resultados das Rodadas
 resultado = ifelse(rodadas$GM > rodadas$GV, 'pVM',
