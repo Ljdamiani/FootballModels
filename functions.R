@@ -227,11 +227,11 @@ fit_parx_team <- function(
 #### BACKTEST PARX (INGARCH) ###############
 
 backtest_parx <- function(data, season_test, x_col, model_name){
-  
-  # data = df_parx
-  # season_test = "2024/2025"
-  # x_col = c("MA_CrsPA", "MA_CrsPA_A")
-  # model_name = "PARX Cross VARIABLES"
+# 
+#   data = df_parx
+#   season_test = "2024/2025"
+#   x_col = c("MA_xG_Expected", "MA_xG_Expected_A")
+#   model_name = "PARX xG VARIABLES"
   
   data <- data[order(data$Match_Date), ]
   
@@ -278,7 +278,7 @@ backtest_parx <- function(data, season_test, x_col, model_name){
     cat("\n", model_name, "   ", i, " de ", length(test_games), "\n\n")
     
     # -----------------------
-    # Rows (mais rápido)
+    # Rows (fast)
     # -----------------------
     
     idx <- data$game_id == g
@@ -290,6 +290,18 @@ backtest_parx <- function(data, season_test, x_col, model_name){
     # -----------------------
     # Prediction
     # -----------------------
+    
+    if(is.null(models[[paste0(home,"_H")]])){
+      train_full <- data[data$game_id <= g, ]
+      models <- update_parx_models(
+        models,
+        train_full,
+        home,
+        away,
+        x_col
+      )
+      next
+    } # Como
     
     lambda_H <- predict_parx(
       models[[paste0(home,"_H")]],
@@ -405,7 +417,11 @@ fit_parx_league <- function(
     y <- dH[[y_col]]
     x <- if(!is.null(x_col)) as.matrix(dH[, x_col]) else NULL
     
-    models[[paste0(team,"_H")]] <- fit_parx_team(y, x, p_max, q_max)
+    if(nrow(dH) == 0){ # Como
+      models[[paste0(team,"_H")]] <- NULL
+    } else{
+      models[[paste0(team,"_H")]] <- fit_parx_team(y, x, p_max, q_max)
+    } 
     
     # AWAY
     cat(paste0("\n Away \n"))
@@ -924,6 +940,11 @@ backtest_bp_footbayes <- function(data, season_test, datas, weeks) {
         data$home_team[i], " x ", data$away_team[i], "\n")
     # if(i == 1) next
     data_train <- data[1:i, ] # prediction row together
+    
+    # Como
+    if(("Como" %in% data_train$away_team) & !("Como" %in% data_train$home_team)){
+      data_train <- data_train %>% filter(away_team != "Como")
+    }
     
     model <- fit_bp_footbayes(data_train)
     pred <- predict_bp_footbayes(model, data_train)
