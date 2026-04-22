@@ -253,7 +253,7 @@ backtest_parx <- function(data, season_test, x_col, model_name){
   # -----------------------
   
   cat("\n First Train \n")
-  first_game <- games$Match_Date[test_games[1]]
+  first_date <- games$Match_Date[test_games[1]]
   train0 <- data[data$Match_Date < first_date, ]
   
   models <- fit_parx_league(train0, x_col)

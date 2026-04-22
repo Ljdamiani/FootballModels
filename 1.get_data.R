@@ -9,6 +9,8 @@
 
 library(worldfootballR)
 library(dplyr)
+library(tidyr)
+library(purrr)
 library(lubridate)
 library(purrr)
 library(stringr)
@@ -17,7 +19,7 @@ library(progress)
 
 # Funções (worldoffootball modificada)
 source("dados/aux_get_data.R")
-seasons = c(2021, 2022, 2025) # 2020:2025
+seasons = c(2021) # 2020:2025
 campeonatos = c(
   # "ENG", 
   # "ESP", 
@@ -30,7 +32,7 @@ stats <- c("summary", "passing", "passing_types", "defense" , "possession", "mis
 for (i in 1:nrow(df)){
   
   # Infos
-  # i = 3
+  # i = 1
   season <- df$season[i]
   comp <- as.character(df$campeonato[i])
   cat("\n\n")
@@ -41,7 +43,7 @@ for (i in 1:nrow(df)){
   
   matches <- data.frame()
   erros = c() 
-  for (i_url in 331:length(urls)){
+  for (i_url in 361:length(urls)){
     
     # Temporadas
     url = urls[i_url]

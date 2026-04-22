@@ -463,7 +463,24 @@ qs_save(results_parx_dummies_var, paste0("models//", countries, "_dummies.qs2"))
 
 
 
-######################### ALL
+######################### COMBINED
+
+# PARX com MA_score + xg
+results_parx_mascore_xg_var = backtest_parx(
+  df_parx, "2024/2025",
+  c("MA_Score_A", "MA_xG_Expected", "MA_xG_Expected_A"),
+  model_name = "PARX MASCORE + xG VARIABLES"
+)
+qs_save(results_parx_mascore_xg_var, paste0("models//", countries, "_mascore_xg.qs2"))
+
+# PARX com MA_score + xg + Dummies
+results_parx_mascore_xg_var_dummies = backtest_parx(
+  df_parx, "2024/2025",
+  c("MA_Score_A", "MA_xG_Expected", "MA_xG_Expected_A", 
+    "newly_promoted_team", "newly_promoted_opp"),
+  model_name = "PARX MASCORE + xG + DUMMIES"
+)
+qs_save(results_parx_mascore_xg_var_dummies, paste0("models//", countries, "_mascore_xg_dummies.qs2"))
 
 # PARX com Todas Variáveis
 results_parx_all_var = backtest_parx(
