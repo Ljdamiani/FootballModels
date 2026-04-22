@@ -38,7 +38,7 @@ source("functions.R")
 ###################################################################################
 
 # Get Data
-countries <- c("ENG")
+countries <- c("ITA")
 Matches_Bakcup <- data.frame()
 for (country in countries){
   for (ano in 2020:2025){

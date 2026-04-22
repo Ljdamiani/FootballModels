@@ -60,7 +60,7 @@ Matches <- Matches_Bakcup %>%
     ),
     Match_Date = as.Date(Match_Date)
   ) %>%
-  select(Match_Date, League, Wk, Home_Team, Away_Team, Home_Score, Away_Score, 
+  select(Match_Date, League, Wk, Season, Home_Team, Away_Team, Home_Score, Away_Score, 
          Team, Home_Away, Score, ScoreA) %>%
   group_by(Team) %>%
   mutate(
@@ -156,39 +156,41 @@ aux_teams = Matches %>%
   complete(Team, Home_Away, Score = 0:9, #max(Score), 
            fill = list(n = 0))
 
-cols <- c(
-  "Liverpool"       = "#1f77b4",
-  "Manchester City" = "#1f77b4",
-  "Real Madrid"     = "#d62728",
-  "Barcelona"       = "#2ca02c",
-  "Milan"           = "#9467bd",
-  "Internazionale"  = "#ff7f0e"
+fills_colors <- c(
+  "Liverpool"       = "#d00027",
+  "Manchester City" = "#6caddf",
+  "Real Madrid"     = "white",
+  "Barcelona"       = "#a50044",
+  "Milan"           = "#fb090b",
+  "Internazionale"  = "#0267ab"
 )
 
-ggplot(aux_teams, aes(x = Score, y = n, fill = Team)) +
-  geom_col(col = "white") +
-  
-  # curva suavizada da distribuição
-  geom_smooth(
-    aes(color = Team),
-    method = "loess",
-    se = FALSE,
-    linewidth = 0.8
-  ) +
+colors_colors <- c(
+  "Liverpool"       = "black",
+  "Manchester City" = "black",
+  "Real Madrid"     = "black",
+  "Barcelona"       = "black",
+  "Milan"           = "black",
+  "Internazionale"  = "black"
+)
+
+ggplot(aux_teams, aes(x = Score, y = n, fill = Team, color = Team)) +
+  geom_col() +
   
   facet_grid(
     Team ~ Home_Away,
-    switch = "y",   # <- labels à esquerda
+    switch = "y",
     labeller = labeller(
       Home_Away = c(Home = "Home", Away = "Away")
     )
   ) +
   
-  scale_fill_manual(values = cols) +
-  scale_color_manual(values = cols) +
+  scale_fill_manual(values = fills_colors) +
+  scale_color_manual(values = colors_colors) +
   
   labs(x = "Goals", y = "") +
   scale_x_continuous(breaks = seq(0, 9, by = 1)) +
+  scale_y_continuous(position = "right") +
   
   theme_bw(base_family = "Times New Roman") +
   theme(
@@ -196,183 +198,112 @@ ggplot(aux_teams, aes(x = Score, y = n, fill = Team)) +
     legend.position = "none"
   )
 
+# Means
+aux_means = Matches %>%
+  ungroup() %>%
+  filter(Team %in% teams_plot) %>%
+  mutate(
+    Home_Away = factor(as.character(Home_Away), levels = c("Home", "Away")),
+    Team = factor(as.character(Team), levels = teams_plot)
+  ) %>%
+  group_by(Team, Home_Away) %>% 
+  summarise(lambda_est = mean(Score), .groups = "drop")
+
+aux_means
+
 # ------------------------------------------------------------ #
 
-# Gráfico das Séries Mandante
-aux <- treino %>% 
-  filter(Team == team & Home_Away == "Home") %>%
+# Series
+teams_plot = c("Manchester City", "Brentford", "Bournemouth")
+aux_teams = Matches %>%
+  filter(Team %in% teams_plot) %>%
   mutate(
-    i = row_number(),
-    mov_avg = rollmean(Score, k = 5, fill = NA, align = "right"),
-    change_season = ifelse(Season != lag(Season), TRUE, FALSE)
-  ) %>%
-  select(i, Match_Date, Season, Team, Score, mov_avg, change_season)
-
-media_home <- mean(aux$Score)
-season_labels <- aux %>%
-  group_by(Season) %>%
-  summarise(
-    x = mean(range(i)),   # centro da temporada no eixo x
-    .groups = "drop"
+    Home_Away = factor(as.character(Home_Away), levels = c("Home", "Away")),
+    Team = factor(as.character(Team), levels = teams_plot)
   )
 
-gL1 <- ggplot(aux, aes(x = i, y = Score)) +
-  labs(y = 'Goals', x = 'Number of Matches', title = paste('Home', team)) +
-  # Linhas verticais de separação
-  geom_vline(xintercept = which(aux$change_season == TRUE) - 0.5, 
-             linetype = "dashed", color = "gold", size = 1.1) +
-  # Linha dos gols
-  geom_line(color = "red", alpha = 0.6, size = 1) +
-  # Linha da média móvel
-  geom_line(aes(y = mov_avg), color = "darkred", size = 1.5) +
-  # Média geral
-  annotate("text", x = min(aux$i), y = 6.5,
-           label = paste("Mean:", round(media_home, 2)),
-           hjust = 0, size = 5, color = "darkred") +
-  # Labels centralizados para cada temporada
-  geom_text(data = season_labels, aes(x = x, y = 8.5, label = Season),
-            inherit.aes = FALSE, color = "#DAA520", size = 5) +
+fills_colors <- c(
+  "Manchester City" = "#6caddf",
+  "Brentford"       = "#e30713",
+  "Bournemouth"     = "#fb090b"
+)
+
+ggplot(aux_teams, aes(x = Match_Date, y = Score, color = Team)) +
+  
+  # linha gols
+  geom_line(aes(color = Team), alpha = 0.7, linewidth = 0.8) +
+  
+  facet_grid(
+    Team ~ Home_Away,
+    switch = "y",
+    labeller = labeller(
+      Home_Away = c(Home = "Home", Away = "Away")
+    )
+  ) +
+  
+  scale_color_manual(values = fills_colors) +
+  labs(x = "", y = "Goals") +
+  scale_y_continuous(limits = c(0, 7), breaks = seq(0, 7, by = 2), position = "right") +
+  
   theme_bw(base_family = "Times New Roman") +
-  lims(y = c(0, 9))
-
-# Gráfico para jogos fora de casa
-aux <- treino %>% 
-  filter(Team == team & Home_Away == "Away") %>%
-  mutate(
-    i = row_number(),
-    mov_avg = rollmean(Score, k = 5, fill = NA, align = "right"),
-    change_season = ifelse(Season != lag(Season), TRUE, FALSE)
-  ) %>%
-  select(i, Match_Date, Season, Team, Score, mov_avg, change_season)
-
-media_home <- mean(aux$Score)
-season_labels <- aux %>%
-  group_by(Season) %>%
-  summarise(
-    x = mean(range(i)),   # centro da temporada no eixo x
-    .groups = "drop"
+  theme(
+    axis.title.y = element_text(margin = margin(r = 50)),
+    strip.placement = "outside",
+    legend.position = "none"
   )
 
-gL2 <- ggplot(aux, aes(x = i, y = Score)) +
-  labs(y = 'Goals', x = 'Number of Matches', title = paste('Away', team)) +
-  # Linhas verticais de separação
-  geom_vline(xintercept = which(aux$change_season == TRUE) - 0.5, 
-             linetype = "dashed", color = "gold", size = 1.1) +
-  # Linha dos gols
-  geom_line(color = "red", alpha = 0.6, size = 1) +
-  # Linha da média móvel
-  geom_line(aes(y = mov_avg), color = "darkred", size = 1.5) +
-  # Média geral
-  annotate("text", x = min(aux$i), y = 6.5,
-           label = paste("Mean:", round(media_home, 2)),
-           hjust = 0, size = 5, color = "darkred") +
-  # Labels centralizados para cada temporada
-  geom_text(data = season_labels, aes(x = x, y = 8.5, label = Season),
-            inherit.aes = FALSE, color = "#DAA520", size = 5) +
-  theme_bw(base_family = "Times New Roman") +
-  lims(y = c(0, 9))
 
 # ------------------------------------------------------------ #
                        
+# ACF
+teams_plot = c("Manchester City", "Brentford", "Bournemouth")
+acf_teams = Matches %>%
+  filter(Team %in% teams_plot) %>%
+  mutate(
+    Home_Away = factor(Home_Away, levels = c("Home", "Away")),
+    Team = factor(Team, levels = teams_plot)
+  ) %>%
+  group_by(Team, Home_Away) %>%
+  group_modify(~{
+    
+    acf_obj = acf(.x$Score, plot = FALSE, lag.max = 30)
+    
+    tibble(
+      lag = as.numeric(acf_obj$lag),
+      acf = as.numeric(acf_obj$acf),
+      limite_superior = 1.96 / sqrt(length(.x$Score))
+    )
+  }) %>%
+  ungroup()
 
-# Gráfico das ACF 
-# acf_spearman_bootstrap <- function(x, max_lag = 80, n_boot = 1000, conf_level = 0.95, seed = 123) {
-#   set.seed(seed)
-#   n <- length(x)
-#   acf_vals <- numeric(max_lag + 1)
-#   lower_ci <- numeric(max_lag + 1)
-#   upper_ci <- numeric(max_lag + 1)
-#   
-#   acf_vals[1] <- 1
-#   lower_ci[1] <- 1
-#   upper_ci[1] <- 1
-#   
-#   for (lag in 1:max_lag) {
-#     obs_cor <- cor(x[1:(n - lag)], x[(lag + 1):n], method = "spearman")
-#     acf_vals[lag + 1] <- obs_cor
-#     
-#     # Bootstrap
-#     boot_vals <- replicate(n_boot, {
-#       idx <- sample(1:(n - lag), size = n - lag, replace = TRUE)
-#       cor(x[idx], x[idx + lag], method = "spearman")
-#     })
-#     
-#     alpha <- (1 - conf_level) / 2
-#     lower_ci[lag + 1] <- quantile(boot_vals, probs = alpha)
-#     upper_ci[lag + 1] <- quantile(boot_vals, probs = 1 - alpha)
-#   }
-#   
-#   acf_df <- data.frame(
-#     lag = 0:max_lag,
-#     acf = acf_vals,
-#     limite_inferior = lower_ci,
-#     limite_superior = upper_ci
-#   )
-#   
-#   # Gráfico estilo ggplot personalizado
-#   g <- ggplot(acf_df, aes(x = lag, y = acf)) +
-#     geom_hline(yintercept = 0) +
-#     geom_ribbon(aes(ymin = limite_inferior, ymax = limite_superior), 
-#                 fill = "grey", alpha = 0.3) +
-#     geom_segment(aes(xend = lag, yend = 0), 
-#                  color = "black", linewidth = 0.6) +
-#     labs(x = "", y = "", title = 'Spearman ACF com IC bootstrap') +
-#     theme_bw() +
-#     theme(text = element_text(family = "Times New Roman"))
-#   
-#   return(g)
-# }
-
-# Home Arsenal
-# dados_acf <- subset(treino, Team == team & Home_Away == "Home")$Score
-# teste <- acf_spearman_bootstrap(dados_acf)
-# Acf()
-
-# Home Arsenal
-dados_acf <- subset(treino, Team == team & Home_Away == "Home")$Score
-limite_superior <- 1.96 / sqrt(length(dados_acf))
-limite_inferior <- -limite_superior
-
-acf_result <- acf(dados_acf, 90)
-acf_df <- data.frame(lag = acf_result$lag, 
-                     acf = acf_result$acf)
-
-gLacf1 <- ggplot(acf_df, aes(x = lag, y = acf)) +
-  geom_hline(yintercept = 0) +
-  geom_ribbon(aes(ymin = limite_inferior, ymax = limite_superior), 
-              fill = "grey", alpha = 0.3)  +
-  geom_segment(aes(xend = lag, yend = 0), 
-               color = "black", linewidth = 0.6) +
-  labs(x = "", y = "ACF", title = paste('Home', team)) +
-  theme_bw() +
-  theme(text = element_text(family = "Times New Roman"))  
-
-# Away Arsenal
-dados_acf <- subset(treino, Team == team & Home_Away == "Away")$Score
-limite_superior <- 1.96 / sqrt(length(dados_acf))
-limite_inferior <- -limite_superior
-
-acf_result <- acf(dados_acf, 90)
-acf_df <- data.frame(lag = acf_result$lag, 
-                     acf = acf_result$acf)
-
-gLacf2 <- ggplot(acf_df, aes(x = lag, y = acf)) +
-  geom_hline(yintercept = 0) +
-  geom_ribbon(aes(ymin = limite_inferior, ymax = limite_superior), 
-              fill = "grey", alpha = 0.3) +
-  geom_segment(aes(xend = lag, yend = 0), 
-               color = "black", linewidth = 0.6) +
-  labs(x = "", y = "", title = paste('Away', team)) +
-  theme_bw() +
-  theme(text = element_text(family = "Times New Roman")) 
-
-
-# GRID
-grid.arrange(
-  gL1, gL2,
-  gLacf1, gLacf2,
-  gLc1, gLc2
+fills_colors <- c(
+  "Manchester City" = "#6caddf",
+  "Brentford"       = "#e30713",
+  "Bournemouth"     = "#fb090b"
 )
 
-
-
+ggplot(acf_teams, aes(x = lag, y = acf, color = Team)) +
+  
+  geom_hline(yintercept = 0, color = "black", linewidth = 0.4) +
+  geom_segment(aes(xend = lag, yend = 0), linewidth = 0.8, alpha = 0.8) +
+  geom_hline(aes(yintercept = limite_superior), linetype = "dashed") +
+  geom_hline(aes(yintercept = -limite_superior), linetype = "dashed") +
+  
+  facet_grid(
+    Team ~ Home_Away,
+    switch = "y",
+    labeller = labeller(
+      Home_Away = c(Home = "Home", Away = "Away")
+    )
+  ) +
+  
+  scale_color_manual(values = fills_colors) +
+  labs(x = "Lag", y = "") +
+  scale_y_continuous(position = "right") +
+  
+  theme_bw(base_family = "Times New Roman") +
+  theme(
+    axis.title.y = element_text(margin = margin(l = 50)),
+    strip.placement = "outside",
+    legend.position = "none"
+  )

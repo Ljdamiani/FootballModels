@@ -920,16 +920,16 @@ backtest_bp_footbayes <- function(data, season_test, datas, weeks) {
   
   for(i in test_idx){
     
+    cat("Match", i - min(test_idx) + 1, " - ",
+        data$home_team[i], " x ", data$away_team[i], "\n")
     # if(i == 1) next
     data_train <- data[1:i, ] # prediction row together
     
     model <- fit_bp_footbayes(data_train)
     pred <- predict_bp_footbayes(model, data_train)
+    pred$prob_table$Match_Date = datas[i]
     results <- bind_rows(results, pred$prob_table)
-    results$Match_Date = datas[i]
     
-    cat("Match", i - min(test_idx) + 1, " - ",
-        data$home_team[i], " x ", data$away_team[i], "\n")
   }
   colnames(results) <- c("Home", "Away", "PH", "PD", "PA", "Date")
   results <- results %>% select(Date, everything())  
