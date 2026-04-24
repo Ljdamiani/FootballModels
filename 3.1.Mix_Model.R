@@ -203,7 +203,7 @@ matches_test <- map_dfr(files_matches, function(f){
 
 # Models
 files_list <- list.files("models", pattern = paste0("\\",countries), full.names = TRUE)
-files_list <- files_list[!str_detect(files_list, "matches|_dc|_bivpois|mix")]
+files_list <- files_list[!str_detect(files_list, "matches|_dc|_bivpois|mix|NEWCOP")]
 
 # Loop - BEST MARGINAL MODEL
 all_models <- list()

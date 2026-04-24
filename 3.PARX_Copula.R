@@ -38,7 +38,7 @@ source("functions.R")
 ###################################################################################
 
 # Get Data
-countries <- c("ESP")
+countries <- c("ITA")
 Matches_Bakcup <- data.frame()
 for (country in countries){
   for (ano in 2020:2025){
@@ -319,8 +319,8 @@ df_dc <- df_full %>%
 # pred
 
 # Backtest
-results_dc <- backtest_dc(data = df_dc, season_test = "2024/2025")
-qs_save(results_dc, paste0("models//", countries, "_dc.qs2"))
+# results_dc <- backtest_dc(data = df_dc, season_test = "2024/2025")
+# qs_save(results_dc, paste0("models//", countries, "_dc.qs2"))
 
 ##############################################################################
 ##############################################################################
@@ -361,8 +361,8 @@ df_bivpois <- df_bivpois %>% select(-Match_Date, -Wk)
 # pred
 
 # Backtest
-results_bivpois <- backtest_bp_footbayes(data = df_bivpois, season_test = 2024, datas_bivpois, wk_bovpois)
-qs_save(results_bivpois, paste0("models//", countries, "_bivpois.qs2"))
+# results_bivpois <- backtest_bp_footbayes(data = df_bivpois, season_test = 2024, datas_bivpois, wk_bovpois)
+# qs_save(results_bivpois, paste0("models//", countries, "_bivpois.qs2"))
 
 
 ##############################################################################
@@ -434,19 +434,19 @@ qs_save(aux_matches, paste0("models//", countries, "_matches.qs2"))
 # )
 # qs_save(results_parx_xg_var, paste0("models//", countries, "_xg.qs2"))
 
-results_parx_xg1_var = backtest_parx(
-  df_parx, "2024/2025",
-  c("MA_xG_Expected"),
-  model_name = "PARX xG1 VARIABLES"
-)
-qs_save(results_parx_xg_var, paste0("models//", countries, "_xg1.qs2"))
-
-results_parx_xg2_var = backtest_parx(
-  df_parx, "2024/2025",
-  c("MA_xG_Expected_A"),
-  model_name = "PARX xG2 VARIABLES"
-)
-qs_save(results_parx_xg2_var, paste0("models//", countries, "_xg2.qs2"))
+# results_parx_xg1_var = backtest_parx(
+#   df_parx, "2024/2025",
+#   c("MA_xG_Expected"),
+#   model_name = "PARX xG1 VARIABLES"
+# )
+# qs_save(results_parx_xg1_var, paste0("models//", countries, "_xg1.qs2"))
+# 
+# results_parx_xg2_var = backtest_parx(
+#   df_parx, "2024/2025",
+#   c("MA_xG_Expected_A"),
+#   model_name = "PARX xG2 VARIABLES"
+# )
+# qs_save(results_parx_xg2_var, paste0("models//", countries, "_xg2.qs2"))
 
 
 # # PARX só com Shots
@@ -456,23 +456,23 @@ qs_save(results_parx_xg2_var, paste0("models//", countries, "_xg2.qs2"))
 #   model_name = "PARX Shots VARIABLES"
 # )
 # qs_save(results_parx_shots_var, paste0("models//", countries, "_shots.qs2"))
-
-# PARX só com Shots
-results_parx_shots1_var = backtest_parx(
-  df_parx, "2024/2025",
-  c("MA_Sh"),
-  model_name = "PARX Shots1 VARIABLES"
-)
-qs_save(results_parx_shots1_var, paste0("models//", countries, "_shots1.qs2"))
-
-# PARX só com Shots
-results_parx_shots2_var = backtest_parx(
-  df_parx, "2024/2025",
-  c("MA_Sh_A"),
-  model_name = "PARX Shots2 VARIABLES"
-)
-qs_save(results_parx_shots2_var, paste0("models//", countries, "_shots2.qs2"))
-
+# 
+# # PARX só com Shots
+# results_parx_shots1_var = backtest_parx(
+#   df_parx, "2024/2025",
+#   c("MA_Sh"),
+#   model_name = "PARX Shots1 VARIABLES"
+# )
+# qs_save(results_parx_shots1_var, paste0("models//", countries, "_shots1.qs2"))
+# 
+# # PARX só com Shots
+# results_parx_shots2_var = backtest_parx(
+#   df_parx, "2024/2025",
+#   c("MA_Sh_A"),
+#   model_name = "PARX Shots2 VARIABLES"
+# )
+# qs_save(results_parx_shots2_var, paste0("models//", countries, "_shots2.qs2"))
+# 
 
 # 
 # # PARX só com Cross
@@ -482,23 +482,23 @@ qs_save(results_parx_shots2_var, paste0("models//", countries, "_shots2.qs2"))
 #   model_name = "PARX Cross VARIABLES"
 # )
 # qs_save(results_parx_cross_var, paste0("models//", countries, "_cross.qs2"))
-
-# PARX só com Cross
-results_parx_cross1_var = backtest_parx(
-  df_parx, "2024/2025",
-  c("MA_CrsPA"),
-  model_name = "PARX Cross1 VARIABLES"
-)
-qs_save(results_parx_cross1_var, paste0("models//", countries, "_cross1.qs2"))
-
-# PARX só com Cross
-results_parx_cross2_var = backtest_parx(
-  df_parx, "2024/2025",
-  c("MA_CrsPA_A"),
-  model_name = "PARX Cross2 VARIABLES"
-)
-qs_save(results_parx_cross2_var, paste0("models//", countries, "_cross2.qs2"))
-
+# 
+# # PARX só com Cross
+# results_parx_cross1_var = backtest_parx(
+#   df_parx, "2024/2025",
+#   c("MA_CrsPA"),
+#   model_name = "PARX Cross1 VARIABLES"
+# )
+# qs_save(results_parx_cross1_var, paste0("models//", countries, "_cross1.qs2"))
+# 
+# # PARX só com Cross
+# results_parx_cross2_var = backtest_parx(
+#   df_parx, "2024/2025",
+#   c("MA_CrsPA_A"),
+#   model_name = "PARX Cross2 VARIABLES"
+# )
+# qs_save(results_parx_cross2_var, paste0("models//", countries, "_cross2.qs2"))
+# 
 
 # 
 # # PARX só com Dummies
@@ -509,22 +509,22 @@ qs_save(results_parx_cross2_var, paste0("models//", countries, "_cross2.qs2"))
 # )
 # qs_save(results_parx_dummies_var, paste0("models//", countries, "_dummies.qs2"))
 # 
-
-# PARX só com Dummies
-results_parx_dummies1_var = backtest_parx(
-  df_parx, "2024/2025",
-  c("newly_promoted_team"),
-  model_name = "PARX Dummy1 VARIABLES"
-)
-qs_save(results_parx_dummies1_var, paste0("models//", countries, "_dummies1.qs2"))
-
-# PARX só com Dummies
-results_parx_dummies2_var = backtest_parx(
-  df_parx, "2024/2025",
-  c("newly_promoted_opp"),
-  model_name = "PARX Dummy2 VARIABLES"
-)
-qs_save(results_parx_dummies2_var, paste0("models//", countries, "_dummies2.qs2"))
+# 
+# # PARX só com Dummies
+# results_parx_dummies1_var = backtest_parx(
+#   df_parx, "2024/2025",
+#   c("newly_promoted_team"),
+#   model_name = "PARX Dummy1 VARIABLES"
+# )
+# qs_save(results_parx_dummies1_var, paste0("models//", countries, "_dummies1.qs2"))
+# 
+# # PARX só com Dummies
+# results_parx_dummies2_var = backtest_parx(
+#   df_parx, "2024/2025",
+#   c("newly_promoted_opp"),
+#   model_name = "PARX Dummy2 VARIABLES"
+# )
+# qs_save(results_parx_dummies2_var, paste0("models//", countries, "_dummies2.qs2"))
 
 
 
@@ -533,13 +533,13 @@ qs_save(results_parx_dummies2_var, paste0("models//", countries, "_dummies2.qs2"
 
 ######################### COMBINED
 
-# # PARX com MA_score + xg
-# results_parx_mascore_xg_var = backtest_parx(
-#   df_parx, "2024/2025",
-#   c("MA_Score_A", "MA_xG_Expected", "MA_xG_Expected_A"),
-#   model_name = "PARX MASCORE + xG VARIABLES"
-# )
-# qs_save(results_parx_mascore_xg_var, paste0("models//", countries, "_mascore_xg.qs2"))
+# PARX com MA_score + xg
+results_parx_mascore_xg_var = backtest_parx(
+  df_parx, "2024/2025",
+  c("MA_Score_A", "MA_xG_Expected", "MA_xG_Expected_A"),
+  model_name = "PARX MASCORE + xG VARIABLES"
+)
+qs_save(results_parx_mascore_xg_var, paste0("models//", countries, "_mascore_xg.qs2"))
 
 # PARX com MA_score + Cross
 results_parx_mascore_cross = backtest_parx(
@@ -549,16 +549,16 @@ results_parx_mascore_cross = backtest_parx(
 )
 qs_save(results_parx_mascore_cross, paste0("models//", countries, "_mascore_cross.qs2"))
 
-# # PARX com MA_score + xg + Dummies
-# results_parx_mascore_xg_var_dummies = backtest_parx(
-#   df_parx, "2024/2025",
-#   c("MA_Score_A", "MA_xG_Expected", "MA_xG_Expected_A", 
-#     "newly_promoted_team", "newly_promoted_opp"),
-#   model_name = "PARX MASCORE + xG + DUMMIES"
-# )
-# qs_save(results_parx_mascore_xg_var_dummies, paste0("models//", countries, "_mascore_xg_dummies.qs2"))
+# PARX com MA_score + xg + Dummies
+results_parx_mascore_xg_var_dummies = backtest_parx(
+  df_parx, "2024/2025",
+  c("MA_Score_A", "MA_xG_Expected", "MA_xG_Expected_A",
+    "newly_promoted_team", "newly_promoted_opp"),
+  model_name = "PARX MASCORE + xG + DUMMIES"
+)
+qs_save(results_parx_mascore_xg_var_dummies, paste0("models//", countries, "_mascore_xg_dummies.qs2"))
 
-# PARX com Todas Variáveis
+# PARX com Todas Variáveis # ITA  - 295
 results_parx_all_var = backtest_parx(
   df_parx, "2024/2025",
   c(paste0("MA_", vars_all), "newly_promoted_team", "newly_promoted_opp"),

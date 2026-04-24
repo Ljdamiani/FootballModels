@@ -4,7 +4,68 @@
 library(dplyr)
 library(readr)
 library(lubridate)
-odds <- read_csv("dados\\odds.csv")
+
+# https://www.football-data.co.uk/italym.php
+
+odds <- read_csv("dados\\odds\\ITA2425.csv")
+
+# 1XBH = 1XBet home win odds
+# 1XBD = 1XBet draw odds
+# 1XBA = 1XBet away win odds
+# B365H = Bet365 home win odds
+# B365D = Bet365 draw odds
+# B365A = Bet365 away win odds
+# BFH = Betfair home win odds
+# BFD = Betfair draw odds
+# BFA = Betfair away win odds
+# BFDH = Betfred home win odds
+# BFDD = Betfred draw odds
+# BFDA = Betfred away win odds
+# BMGMH = BetMGM home win odds
+# BMGMD = BetMGM draw odds
+# BMGMA = BetMGM away win odds
+# BVH = Betvictor home win odds
+# BVD = Betvictor draw odds
+# BVA = Betvictor away win odds
+# BSH = Blue Square home win odds
+# BSD = Blue Square draw odds
+# BSA = Blue Square away win odds
+# BWH = Bet&Win home win odds
+# BWD = Bet&Win draw odds
+# BWA = Bet&Win away win odds
+# CLH = Coral home win odds
+# CLD = Coral draw odds
+# CLA = Coral away win odds
+# GBH = Gamebookers home win odds
+# GBD = Gamebookers draw odds
+# GBA = Gamebookers away win odds
+# IWH = Interwetten home win odds
+# IWD = Interwetten draw odds
+# IWA = Interwetten away win odds
+# LBH = Ladbrokes home win odds
+# LBD = Ladbrokes draw odds
+# LBA = Ladbrokes away win odds
+# PSH and PH = Pinnacle home win odds
+# PSD and PD = Pinnacle draw odds
+# PSA and PA = Pinnacle away win odds
+# SOH = Sporting Odds home win odds
+# SOD = Sporting Odds draw odds
+# SOA = Sporting Odds away win odds
+# SBH = Sportingbet home win odds
+# SBD = Sportingbet draw odds
+# SBA = Sportingbet away win odds
+# SJH = Stan James home win odds
+# SJD = Stan James draw odds
+# SJA = Stan James away win odds
+# SYH = Stanleybet home win odds
+# SYD = Stanleybet draw odds
+# SYA = Stanleybet away win odds
+# VCH = VC Bet home win odds (now BetVictor, see above)
+# VCD = VC Bet draw odds (now BetVictor, see above)
+# VCA = VC Bet away win odds (now BetVictor, see above)
+# WHH = William Hill home win odds
+# WHD = William Hill draw odds
+# WHA = William Hill away win odds
 
 # Filtro
 odds <- odds %>%

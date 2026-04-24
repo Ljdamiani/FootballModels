@@ -29,6 +29,10 @@ matches_all <- map_dfr(files_matches, function(f){
     mutate(League = country)
 })
 
+# Remove Como Match
+matches_all <- matches_all %>%
+  filter(!((Home == "Udinese") & (Away == "Como")))
+
 df_probs <- matches_all
 cols = c("Date","Home","Away")
 
@@ -59,28 +63,28 @@ df_probs <- df_probs %>%
     )
   )
 
-# files_biv <- list.files("models", pattern = "_bivpois\\.qs2$", full.names = TRUE)
-# aux_probs = data.frame()
-# for(f in files_biv){
-#   name <- str_remove(basename(f), "\\.qs2$")
-#   cat("Loading:", name, "\n")
-#   tmp <- qs_read(f)
-#   tmp <- tmp %>%
-#     rename_with(~ paste0(.x, "_bp"), -all_of(cols))
-#   aux_probs = rbind(aux_probs, tmp)
-#   rm(tmp)
-#   gc()
-# }
-# df_probs <- df_probs %>% 
-#   left_join(aux_probs, by = cols) %>% 
-#   mutate(
-#     result_bp = case_when(
-#       PH_bp > pmax(PA_bp, PD_bp) ~ "H",
-#       PA_bp > pmax(PH_bp, PD_bp) ~ "A",
-#       PD_bp > pmax(PH_bp, PA_bp) ~ "D",
-#       T ~ NA
-#     )
-#   )
+files_biv <- list.files("models", pattern = "_bivpois\\.qs2$", full.names = TRUE)
+aux_probs = data.frame()
+for(f in files_biv){
+  name <- str_remove(basename(f), "\\.qs2$")
+  cat("Loading:", name, "\n")
+  tmp <- qs_read(f)
+  tmp <- tmp %>%
+    rename_with(~ paste0(.x, "_bp"), -all_of(cols))
+  aux_probs = rbind(aux_probs, tmp)
+  rm(tmp)
+  gc()
+}
+df_probs <- df_probs %>%
+  left_join(aux_probs, by = cols) %>%
+  mutate(
+    result_bp = case_when(
+      PH_bp > pmax(PA_bp, PD_bp) ~ "H",
+      PA_bp > pmax(PH_bp, PD_bp) ~ "A",
+      PD_bp > pmax(PH_bp, PA_bp) ~ "D",
+      T ~ NA
+    )
+  )
 
 ################################
 #_______   JOIN MODELS  _______#
@@ -218,7 +222,7 @@ get_probs <- function(df, model){
 
 #_______   CALC METRICS  ______#
 
-leagues <- c("ENG", "ESP")
+leagues <- c("ENG", "ESP", "ITA")
 perf_list <- vector("list", length(models))
 for(lg in leagues){
   df_lg <- df_probs %>% filter(League == lg)
@@ -234,7 +238,7 @@ for(lg in leagues){
       
       probs <- probs[ok, ]
       obs   <- df_lg$result[ok]
-      obs_factor   <- factor(obs)
+      obs_factor   <- factor(obs, levels = c("H","D","A"))
       pred <- c("H","D","A")[max.col(probs)]
       colnames(probs) = c("H","D","A")
       
