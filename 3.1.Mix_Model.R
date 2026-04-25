@@ -191,7 +191,6 @@ df_parx <- df_parx %>%
 
 ######################### MIX MODEL
 
-countries <- c("ENG")
 files_matches <- list.files("models", pattern = paste0(countries, "_matches\\.qs2$"), full.names = TRUE)
 
 # Test Data
@@ -253,6 +252,7 @@ for(f in files_list){
 results = list()
 for(i in 1:nrow(matches_test)){
   
+  # if(i == 11){next} #ITA
   date   <- matches_test$Date[i]
   home   <- matches_test$Home[i]
   away   <- matches_test$Away[i]
@@ -281,7 +281,8 @@ for(i in 1:nrow(matches_test)){
       names(coef(mod1))[-1][!grepl("beta|alpha", names(coef(mod1))[-1])],
       ~ substr(.x, 2, nchar(.x))
     )
-    if(all(is.na(x_col))){x_col <- NULL}
+    if(all(is.na(x_col))){x_col <- NULL
+    } else if (all(x_col == "")){x_col <- names(mod1$data$is_dummy)}
   }
   lambda_H <- predict_parx(
     mod1,
@@ -295,7 +296,8 @@ for(i in 1:nrow(matches_test)){
       names(coef(mod2))[-1][!grepl("beta|alpha", names(coef(mod2))[-1])],
       ~ substr(.x, 2, nchar(.x))
     )
-    if(all(is.na(x_col))){x_col <- NULL}
+    if(all(is.na(x_col))){x_col <- NULL
+    } else if (all(x_col == "")){x_col <- names(mod2$data$is_dummy)}
   }
   lambda_A <- predict_parx(
     mod2,

@@ -193,7 +193,6 @@ df_parx <- df_parx %>% left_join(games[,c("Match_Date","Home_Team","Away_Team","
 
 ######################### MODEL - NEW COPULA
 
-countries <- c("ENG")
 files_matches <- list.files("models", pattern = paste0(countries, "_matches\\.qs2$"), full.names = TRUE)
 
 # Test Data
@@ -207,8 +206,9 @@ matches_test <- map_dfr(files_matches, function(f){
 files_list <- list.files("models", pattern = paste0("\\",countries), full.names = TRUE)
 files_list_newcop <- files_list[str_detect(files_list, "NEWCOP")] %>% str_remove("\\_NEWCOP")
 # files_list <- files_list[!str_detect(files_list, "matches|_dc|_bivpois|NEWCOP")]
-files_list <- files_list[!str_detect(files_list, "matches|_dc|_bivpois|NEWCOP|mix")]
+files_list <- files_list[!str_detect(files_list, "matches|_dc|_bivpois|NEWCOP")]
 files_list <- setdiff(files_list, files_list_newcop)
+print(files_list)
 
 # Loop 
 for(f in files_list){
@@ -222,16 +222,19 @@ for(f in files_list){
   results = list()
   for(i in seq_along(aux_models)){
     
+    # if(i == 11){next} #ITA
     x <- aux_models[[i]]
     models <- x$models
+    if(length(models) == 0){cat("\n", file, i, " - erro") 
+      next}
   
     date   <- matches_test$Date[i]
     home   <- matches_test$Home[i]
     away   <- matches_test$Away[i]
     g      <- df_parx[(df_parx$Match_Date == date) & (df_parx$Home_Team == home) & (df_parx$Away_Team == away), ]$game_id[1]
     
-    cat("\n")
-    cat(i, home, "x", away)
+    # cat("\n")
+    # cat(i, home, "x", away)
   
     # -----------------------
     # Rows (fast)
@@ -252,8 +255,8 @@ for(f in files_list){
         names(coef(mod1))[-1][!grepl("beta|alpha", names(coef(mod1))[-1])],
         ~ substr(.x, 2, nchar(.x))
       )
-      if(x_col == ""){x_col <- names(mod1$data$is_dummy)}
-      if(all(is.na(x_col))){x_col <- NULL}
+      if(all(is.na(x_col))){x_col <- NULL
+      } else if (all(x_col == "")){x_col <- names(mod1$data$is_dummy)}
     }
     lambda_H <- predict_parx(
       mod1,
@@ -267,8 +270,8 @@ for(f in files_list){
         names(coef(mod2))[-1][!grepl("beta|alpha", names(coef(mod2))[-1])],
         ~ substr(.x, 2, nchar(.x))
       )
-      if(x_col == ""){x_col <- names(mod2$data$is_dummy)}
-      if(all(is.na(x_col))){x_col <- NULL}
+      if(all(is.na(x_col))){x_col <- NULL
+      } else if (all(x_col == "")){x_col <- names(mod2$data$is_dummy)}
     }
     lambda_A <- predict_parx(
       mod2,
@@ -355,7 +358,38 @@ for(f in files_list){
     }
     
     res <- aux_train %>% filter(!is.na(ResH)) %>% filter(!is.na(ResA))
-    cop <- estimate_parx_copula(res)
+
+    U <- pobs(as.matrix(res[,c("ResH","ResA")]))
+    
+    fit_gau <- tryCatch(
+      fitCopula(normalCopula(), U, method = "ml"),
+      error = function(e) NULL
+    )
+    
+    fit_frank <- tryCatch(
+      fitCopula(frankCopula(), U, method = "ml"),
+      error = function(e) NULL
+    )
+    
+    fit_clay <- tryCatch(
+      fitCopula(claytonCopula(), U, method = "ml"),
+      error = function(e) NULL
+    )
+    
+    aics <- c(
+      ifelse(length(fit_gau)>0, AIC(fit_gau), NA),
+      ifelse(length(fit_frank)>0, AIC(fit_frank), NA),
+      ifelse(length(fit_clay)>0, AIC(fit_clay), NA)
+    )
+    
+    best <- which.min(aics)
+    
+    cop <- list(
+      name = c("Normal","Frank","Clayton")[best],
+      model = list(fit_gau,fit_frank,fit_clay)[[best]]
+    )
+    
+    # cop <- estimate_parx_copula(res)
     prob_cop <- predict_parx_copula(lambda_H, lambda_A, cop$model)
     
     PH_COP <- sum(prob_cop[lower.tri(prob_cop)])

@@ -198,9 +198,6 @@ aux_probs_wide <- aux_probs %>%
 
 df_probs <- df_probs %>% left_join(aux_probs_wide, by = cols)
 
-# models_ENG_xg2 <- qs_read(paste0("models//ENG_xg2.qs2"))
-# teste <- c(models_ENG_xg2[1:39], models_ENG_xg[40:length(models_ENG_xg)])
-# qs_save(teste, paste0("models//ENG_xg.qs2"))
 
 
 ############################################
@@ -220,12 +217,22 @@ get_probs <- function(df, model){
   )
 }
 
-#_______   CALC METRICS  ______#
+df_performance <- df_probs %>%
+  mutate(
+    month_year = format(Date, "%Y-%m"),
+    cluster = case_when(
+      (cluster_home == "No Relegation") &
+        (cluster_away == "No Relegation") ~ "No Relegation Teams",
+    T ~ "At least 1 Relegation"
+    )
+  )
+
+#_______   CALC METRICS - LEAGUES  ______#
 
 leagues <- c("ENG", "ESP", "ITA")
 perf_list <- vector("list", length(models))
 for(lg in leagues){
-  df_lg <- df_probs %>% filter(League == lg)
+  df_lg <- df_performance %>% filter(League == lg)
   for(i in seq_along(models)){
     
     m <- models[i]
@@ -271,11 +278,223 @@ perf_df <- perf_df %>%
     model,
     into = c("model", "method"),
     sep = "_(?=[^_]+$)"
+  ) %>% 
+  arrange(league, desc(match_result))
+
+
+#_______   CALC METRICS - LEAGUES - GROUPS  ______#
+
+leagues <- c("ENG", "ESP", "ITA")
+clusters <- unique(df_performance$cluster)
+perf_list <- vector("list", length(models))
+for(lg in leagues){
+  df_lg <- df_performance %>% filter(League == lg)
+  for (clus in clusters){
+    df_lg_clus <- df_lg %>% filter(cluster == clus)
+    for(i in seq_along(models)){
+      
+      m <- models[i]
+      res <- tryCatch({
+        probs <- get_probs(df_lg_clus, m)
+        row_sums <- rowSums(probs)
+        row_sums[row_sums == 0] <- 1
+        probs <- probs / row_sums
+        ok <- complete.cases(probs, df_lg_clus$result)
+        
+        probs <- probs[ok, ]
+        obs   <- df_lg_clus$result[ok]
+        obs_factor   <- factor(obs, levels = c("H","D","A"))
+        pred <- c("H","D","A")[max.col(probs)]
+        colnames(probs) = c("H","D","A")
+        
+        data.frame(
+          cluster = clus,
+          league = lg,
+          model = m,
+          
+          #__________ Log Loss _____________#
+          logloss = Logloss(probs, obs_factor),
+          
+          #__________ Brier Score _____________#
+          brier = mbrier(obs_factor, probs),
+          
+          #__________ Match Result Score _____________#
+          match_result = mean(pred == obs)
+        )
+      }, error = function(e){
+        NULL
+      })
+      if(!is.null(res)){
+        perf_list[[idx]] <- res
+        idx <- idx + 1
+      }
+    } 
+  }
+}
+
+perf_df_cluster <- bind_rows(perf_list)
+perf_df_cluster <- perf_df_cluster %>%
+  separate(
+    model,
+    into = c("model", "method"),
+    sep = "_(?=[^_]+$)"
+  ) %>% 
+  arrange(league, cluster, desc(match_result))
+
+# Save Excel
+library(writexl)
+write_xlsx(
+  list(
+    Leagues = perf_df,
+    Clusters = perf_df_cluster
+  ),
+  "results\\results.xlsx"
+)
+
+
+#_______   CALC METRICS - LEAGUES - MONTH  ______#
+
+leagues <- c("ENG", "ESP", "ITA")
+ms <- unique(df_performance$month_year)
+perf_list <- vector("list", length(models))
+for(lg in leagues){
+  df_lg <- df_performance %>% filter(League == lg)
+  for (month in ms){
+    df_lg_m <- df_lg %>% filter(month_year == month)
+    for(i in seq_along(models)){
+      
+      m <- models[i]
+      res <- tryCatch({
+        probs <- get_probs(df_lg_m, m)
+        row_sums <- rowSums(probs)
+        row_sums[row_sums == 0] <- 1
+        probs <- probs / row_sums
+        ok <- complete.cases(probs, df_lg_m$result)
+        
+        probs <- probs[ok, ]
+        obs   <- df_lg_m$result[ok]
+        obs_factor   <- factor(obs, levels = c("H","D","A"))
+        pred <- c("H","D","A")[max.col(probs)]
+        colnames(probs) = c("H","D","A")
+        
+        data.frame(
+          month_year = month,
+          league = lg,
+          model = m,
+          
+          #__________ Log Loss _____________#
+          logloss = Logloss(probs, obs_factor),
+          
+          #__________ Brier Score _____________#
+          brier = mbrier(obs_factor, probs),
+          
+          #__________ Match Result Score _____________#
+          match_result = mean(pred == obs)
+        )
+      }, error = function(e){
+        NULL
+      })
+      if(!is.null(res)){
+        perf_list[[idx]] <- res
+        idx <- idx + 1
+      }
+    } 
+  }
+}
+
+perf_df_m <- bind_rows(perf_list) %>%
+  separate(
+    model,
+    into = c("model", "method"),
+    sep = "_(?=[^_]+$)"
+  ) %>% 
+  arrange(league, month_year, desc(match_result))
+
+# Plot
+df_plot <- perf_df_m %>%
+  mutate(month_year = as.Date(paste0(month_year, "-01"))) %>%
+  pivot_longer(
+    cols = c(logloss, brier, match_result),
+    names_to = "metric",
+    values_to = "value"
+  )  %>%
+  filter(
+    model %in% c(
+      "dc", "bp",
+      "dummies", "dummies1", "dummies2",
+      "xg", "xg1", "cross", "no_var"
+    )
+  ) %>%
+  filter(metric == "match_result") %>%
+  mutate(
+    method2 = ifelse(is.na(method), "benchmark", method),
+    is_benchmark = method2 == "benchmark"
   )
 
-perf_df %>%
-  arrange(league, match_result)
+library(scales)
 
+df_plo2 <- df_plot %>% filter(model %in% c("dc", "bp", "dummies", "cross", "xg"))
+ggplot(df_plot2, aes(
+  x = month_year,
+  y = value,
+  color = model,
+  linetype = method2,
+  linewidth = is_benchmark,
+  group = interaction(model, method2)
+)) +
+  geom_line() +
+  facet_grid(league ~ metric) +
+  scale_x_date(
+    date_breaks = "1 month",
+    date_labels = "%Y-%m",
+    expand = expansion(mult = c(0.01, 0.01))
+  ) +
+  scale_y_continuous(
+    limits = c(0.1, 0.7),
+    breaks = seq(0.1, 0.7, 0.1)
+  ) +
+  scale_linewidth_manual(
+    values = c(`TRUE` = 1.3, `FALSE` = 0.8),
+    guide = "none"
+  ) +
+  labs(
+    x = "",
+    y = "",
+    color = "Model",
+    linetype = "Method"
+  ) +
+  theme_classic(base_family = "Times New Roman") +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold"),
+    legend.title = element_text(face = "bold"),
+    
+    panel.grid.major.y = element_line(color = "grey80", linewidth = 0.4),
+    panel.grid.minor.y = element_line(color = "grey90", linewidth = 0.2),
+    panel.grid.major.x = element_line(color = "grey85", linewidth = 0.3)
+  )
+
+library(plotly)
+
+p <- ggplot(df_plot, aes(
+  x = month_year,
+  y = value,
+  color = model,
+  group = interaction(model, method),
+  text = paste(
+    "Model:", model,
+    "<br>Method:", method,
+    "<br>League:", league,
+    "<br>Metric:", metric,
+    "<br>Value:", round(value,4)
+  )
+)) +
+  geom_line() +
+  facet_grid(league ~ metric, scales = "free_y") +
+  theme_classic(base_family = "Times New Roman")
+
+ggplotly(p, tooltip = "text")
 
 ###############################
 #_______   PARAMETERS  _______#
@@ -384,4 +603,92 @@ round(
   ) * 100, 
   2
 )
+
+
+
+# -------------------------------------------------------------------------------- #
+
+
+# Partida Exemplo Arsenal e Chelsea
+
+# Campeonato a ser Predito
+season = dados[dados$Date >= '2022-08-05', ]
+rownames(season) <- NULL
+
+partida <- season[season$Home == 'Arsenal' & 
+                    season$Away == 'Chelsea', ]
+
+
+mod1 <- models_rodada$`rodada 34`[[3]]$Arsenal_M
+mod2 <- models_rodada$`rodada 34`[[3]]$Chelsea_V
+
+lM = predict(mod1, n.ahead=1)$pred
+lV = predict(mod2, n.ahead=1)$pred
+
+# Poisson P(lM)
+pM = rep(NA, 7)
+names(pM) = 0:6
+for (i in 0:6){
+  pM[i+1] = dpois(x = i, lambda = lM)
+}
+
+# Poisson P(lM)
+pV = rep(NA, 7)
+names(pV) = 0:6
+for (i in 0:6){
+  pV[i+1] = dpois(x = i, lambda = lV)
+}
+
+
+# Placares
+resultado = pM %*% t(pV)
+round(resultado, 5)
+
+# Probabilidades
+pVM = sum(resultado[lower.tri(resultado)])
+pE = sum(diag(resultado))
+pVV = sum(resultado[upper.tri(resultado)])
+
+sum(c(pVM, pE, pVV))
+
+# -------------------------------------------------------------------------------- #
+
+# Calibragem dos AJustes
+
+par(mfrow=c(4,4))
+
+pit(models_rodada$`rodada 34`[[1]][['Everton_M']], main=TeX("$PARX_{I}^* (Home)$"))
+pit(models_rodada$`rodada 34`[[2]][['Everton_M']], 
+    main=TeX("$PARX_{I} (Home)$"), ylab='')
+pit(models_rodada$`rodada 34`[[3]][['Everton_M']], 
+    main=TeX("$PARX_{L}^* (Home)$"), ylab='')
+pit(models_rodada$`rodada 34`[[4]][['Everton_M']], 
+    main=TeX("$PARX_{L} (Home)$"), ylab='')
+
+marcal(models_rodada$`rodada 34`[[1]][['Everton_M']], main = 'Marginal Calibration', 
+       xlab = 'Goals', ylim = c(-0.1, 0.1))
+marcal(models_rodada$`rodada 34`[[2]][['Everton_M']], main = 'Marginal Calibration', 
+       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
+marcal(models_rodada$`rodada 34`[[3]][['Everton_M']], main = 'Marginal Calibration', 
+       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
+marcal(models_rodada$`rodada 34`[[4]][['Everton_M']], main = 'Marginal Calibration', 
+       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
+
+
+pit(models_rodada$`rodada 34`[[1]][['Everton_V']], main=TeX("$PARX_{I}^* (Away)$"))
+pit(models_rodada$`rodada 34`[[2]][['Everton_V']], 
+    main=TeX("$PARX_{I} (Away)$"), ylab='')
+pit(models_rodada$`rodada 34`[[3]][['Everton_V']], 
+    main=TeX("$PARX_{L}^* (Away)$"), ylab='')
+pit(models_rodada$`rodada 34`[[4]][['Everton_V']], 
+    main=TeX("$PARX_{L} (Away)$"), ylab='')
+
+marcal(models_rodada$`rodada 34`[[1]][['Everton_V']], main = 'Marginal Calibration', 
+       xlab = 'Goals', ylim = c(-0.1, 0.1))
+marcal(models_rodada$`rodada 34`[[2]][['Everton_V']], main = 'Marginal Calibration', 
+       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
+marcal(models_rodada$`rodada 34`[[3]][['Everton_V']], main = 'Marginal Calibration', 
+       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
+marcal(models_rodada$`rodada 34`[[4]][['Everton_V']], main = 'Marginal Calibration', 
+       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
 
