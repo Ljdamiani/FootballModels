@@ -1205,42 +1205,154 @@ prob_ind_df
 
 # -------------------------------------------------------------------------------- #
 
-# Calibragem dos AJustes
+# PIT and Calibration
+library(patchwork)
+aux_models <- qs_read("models/ENG_dummies2.qs2")
+x <- aux_models[[360]]
+models <- x$models
 
-par(mfrow=c(4,4))
+# Models
+mod1_1 = models[["Manchester City_H"]]
+mod1_2 = models[["Manchester City_A"]]
+mod2_1 = models[["Brentford_H"]]
+mod2_2 = models[["Brentford_A"]]
+mod3_1 = models[["Southampton_H"]]
+mod3_2 = models[["Southampton_A"]]
 
-pit(models_rodada$`rodada 34`[[1]][['Everton_M']], main=TeX("$PARX_{I}^* (Home)$"))
-pit(models_rodada$`rodada 34`[[2]][['Everton_M']], 
-    main=TeX("$PARX_{I} (Home)$"), ylab='')
-pit(models_rodada$`rodada 34`[[3]][['Everton_M']], 
-    main=TeX("$PARX_{L}^* (Home)$"), ylab='')
-pit(models_rodada$`rodada 34`[[4]][['Everton_M']], 
-    main=TeX("$PARX_{L} (Home)$"), ylab='')
+mods <- list(
+  `Manchester City Home` = mod1_1,
+  `Manchester City Away` = mod1_2,
+  `Brentford Home` = mod2_1,
+  `Brentford Away` = mod2_2,
+  `Southampton Home` = mod3_1,
+  `Southampton Away` = mod3_2
+)
 
-marcal(models_rodada$`rodada 34`[[1]][['Everton_M']], main = 'Marginal Calibration', 
-       xlab = 'Goals', ylim = c(-0.1, 0.1))
-marcal(models_rodada$`rodada 34`[[2]][['Everton_M']], main = 'Marginal Calibration', 
-       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
-marcal(models_rodada$`rodada 34`[[3]][['Everton_M']], main = 'Marginal Calibration', 
-       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
-marcal(models_rodada$`rodada 34`[[4]][['Everton_M']], main = 'Marginal Calibration', 
-       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
+par(mfrow = c(3,2))
+par(mar = c(3,3,2,1))
+
+# PIT
+invisible(lapply(names(mods), function(n){
+  pit(mods[[n]], main = paste(n))
+}))
+
+# MARCAL (teste de calibração marginal)
+invisible(lapply(names(mods), function(n){
+  marcal(mods[[n]], main = paste(n), ylim=c(-0.1, 0.1))
+}))
 
 
-pit(models_rodada$`rodada 34`[[1]][['Everton_V']], main=TeX("$PARX_{I}^* (Away)$"))
-pit(models_rodada$`rodada 34`[[2]][['Everton_V']], 
-    main=TeX("$PARX_{I} (Away)$"), ylab='')
-pit(models_rodada$`rodada 34`[[3]][['Everton_V']], 
-    main=TeX("$PARX_{L}^* (Away)$"), ylab='')
-pit(models_rodada$`rodada 34`[[4]][['Everton_V']], 
-    main=TeX("$PARX_{L} (Away)$"), ylab='')
+# Kolmogorov-Smirnov
 
-marcal(models_rodada$`rodada 34`[[1]][['Everton_V']], main = 'Marginal Calibration', 
-       xlab = 'Goals', ylim = c(-0.1, 0.1))
-marcal(models_rodada$`rodada 34`[[2]][['Everton_V']], main = 'Marginal Calibration', 
-       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
-marcal(models_rodada$`rodada 34`[[3]][['Everton_V']], main = 'Marginal Calibration', 
-       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
-marcal(models_rodada$`rodada 34`[[4]][['Everton_V']], main = 'Marginal Calibration', 
-       xlab = 'Goals', ylab='', ylim = c(-0.1, 0.1))
+pit_tsglm <- function(mod){
+  
+  y    <- mod$response
+  mu   <- fitted(mod)
+  distr <- mod$distr
+  coefs <- mod$distrcoefs
+  
+  n <- length(mu)
+  pit <- numeric(n)
+  
+  for(t in seq_len(n)){
+    
+    if(distr == "poisson"){
+      
+      P_x <- ppois(y[t], mu[t])
+      
+      if(y[t] != 0){
+        P_x_1 <- ppois(y[t]-1, mu[t])
+      } else {
+        P_x_1 <- 0
+      }
+      
+    } else {
+      
+      P_x <- pnbinom(y[t], mu=mu[t], size=coefs)
+      
+      if(y[t] != 0){
+        P_x_1 <- pnbinom(y[t]-1, mu=mu[t], size=coefs)
+      } else {
+        P_x_1 <- 0
+      }
+    }
+    
+    pit[t] <- runif(1, P_x_1, P_x)
+  }
+  
+  pit
+}
 
+pit_hist_tscount <- function(mod, bins=10){
+  
+  y    <- mod$response
+  mu   <- fitted(mod)
+  distr <- mod$distr
+  coefs <- mod$distrcoefs
+  
+  n <- length(mu)
+  u <- seq(0,1,length.out=bins+1)
+  
+  pit <- numeric(length(u))
+  
+  for(t in seq_len(n)){
+    
+    if(distr == "poisson"){
+      
+      P_x <- ppois(y[t], mu[t])
+      P_x_1 <- if(y[t]==0) 0 else ppois(y[t]-1, mu[t])
+      
+    } else {
+      
+      P_x <- pnbinom(y[t], mu=mu[t], size=coefs)
+      P_x_1 <- if(y[t]==0) 0 else pnbinom(y[t]-1, mu=mu[t], size=coefs)
+    }
+    
+    pit <- pit + punif(u, P_x_1, P_x)/n
+  }
+  
+  histo <- list(
+    breaks  = u,
+    counts  = diff(pit) * n,
+    density = diff(pit) * bins,
+    mids    = (u[-(bins+1)] + u[-1])/2,
+    xname   = "PIT",
+    equidist = TRUE
+  )
+  
+  class(histo) <- "histogram"
+  histo
+}
+
+# Test if its equal a PIT
+for(n in names(mods)){
+  
+  h <- pit_hist_tscount(mods[[n]])
+  
+  plot(
+    h,
+    main = paste("PIT", n),
+    xlab = "Probability integral transform",
+    ylab = "Density",
+    freq = FALSE
+  )
+  
+  abline(h=1, lty=2, col="blue")
+}
+
+# KS Test
+pit_list <- lapply(mods, pit_tsglm)
+
+ks_res <- lapply(pit_list, function(p){
+  ks.test(p, "punif")
+})
+
+ks_table <- data.frame(
+  model = names(ks_res),
+  statistic = sapply(ks_res, \(x) x$statistic),
+  pvalue = sapply(ks_res, \(x) x$p.value)
+)
+
+ks_table
+
+ 

@@ -1,136 +1,311 @@
 
 
+####################################################
 
+# _______________ # BETTING  # ________________ #
+
+# ___________ Author: Leonardo Damiani ___________ # 
+
+####################################################
+
+# Packages
 library(dplyr)
 library(readr)
 library(lubridate)
 
-# https://www.football-data.co.uk/italym.php
+################################
+#_______     MATCHES    _______#
+################################
 
-odds <- read_csv("dados\\odds\\ITA2425.csv")
+files_matches <- list.files("models", pattern = "matches\\.qs2$", full.names = TRUE)
 
-# 1XBH = 1XBet home win odds
-# 1XBD = 1XBet draw odds
-# 1XBA = 1XBet away win odds
-# B365H = Bet365 home win odds
-# B365D = Bet365 draw odds
-# B365A = Bet365 away win odds
-# BFH = Betfair home win odds
-# BFD = Betfair draw odds
-# BFA = Betfair away win odds
-# BFDH = Betfred home win odds
-# BFDD = Betfred draw odds
-# BFDA = Betfred away win odds
-# BMGMH = BetMGM home win odds
-# BMGMD = BetMGM draw odds
-# BMGMA = BetMGM away win odds
-# BVH = Betvictor home win odds
-# BVD = Betvictor draw odds
-# BVA = Betvictor away win odds
-# BSH = Blue Square home win odds
-# BSD = Blue Square draw odds
-# BSA = Blue Square away win odds
-# BWH = Bet&Win home win odds
-# BWD = Bet&Win draw odds
-# BWA = Bet&Win away win odds
-# CLH = Coral home win odds
-# CLD = Coral draw odds
-# CLA = Coral away win odds
-# GBH = Gamebookers home win odds
-# GBD = Gamebookers draw odds
-# GBA = Gamebookers away win odds
-# IWH = Interwetten home win odds
-# IWD = Interwetten draw odds
-# IWA = Interwetten away win odds
-# LBH = Ladbrokes home win odds
-# LBD = Ladbrokes draw odds
-# LBA = Ladbrokes away win odds
-# PSH and PH = Pinnacle home win odds
-# PSD and PD = Pinnacle draw odds
-# PSA and PA = Pinnacle away win odds
-# SOH = Sporting Odds home win odds
-# SOD = Sporting Odds draw odds
-# SOA = Sporting Odds away win odds
-# SBH = Sportingbet home win odds
-# SBD = Sportingbet draw odds
-# SBA = Sportingbet away win odds
-# SJH = Stan James home win odds
-# SJD = Stan James draw odds
-# SJA = Stan James away win odds
-# SYH = Stanleybet home win odds
-# SYD = Stanleybet draw odds
-# SYA = Stanleybet away win odds
-# VCH = VC Bet home win odds (now BetVictor, see above)
-# VCD = VC Bet draw odds (now BetVictor, see above)
-# VCA = VC Bet away win odds (now BetVictor, see above)
-# WHH = William Hill home win odds
-# WHD = William Hill draw odds
-# WHA = William Hill away win odds
+# Test Data
+matches_all <- map_dfr(files_matches, function(f){
+  country <- str_extract(basename(f), "^[A-Z]+")
+  qs_read(f) %>%
+    mutate(League = country)
+})
 
-# Filtro
-odds <- odds %>%
-  select(Date, HomeTeam, AwayTeam, 
-         B365H, B365D, B365A, # Bet365
-         BWH, BWD, BWA, # Bet&Win
-         IWH, IWD, IWA, # Interwetten
-         PSH, PSD, PSA, # Pinnacle
-         WHH, WHD, WHA, # William Hill
-         VCH, VCD, VCA, # VC Bet
-         #MaxH, MaxD, MaxA, # Market Maximus 
-         AvgH, AvgD, AvgA # Market Average
+# Remove Como Match
+matches_all <- matches_all %>%
+  filter(!((Home == "Udinese") & (Away == "Como"))) %>%
+  mutate(
+    cluster = case_when(
+      (cluster_home == "No Relegation") &
+        (cluster_away == "No Relegation") ~ "No Relegation Teams",
+      T ~ "At least 1 Relegation"
+    )
   )
 
-# Renomeia alguns nomes dos times
-odds$HomeTeam = ifelse(odds$HomeTeam == 'Leeds', 'Leeds United',
-                       ifelse(odds$HomeTeam == 'Newcastle', 'Newcastle Utd',
-                              ifelse(odds$HomeTeam == 'Leicester', 'Leicester City',
-                                     ifelse(odds$HomeTeam == 'Man United', 'Manchester Utd', 
-                                            ifelse(odds$HomeTeam == 'Man City', 'Manchester City',
-                                                   ifelse(odds$HomeTeam == "Nott'm Forest", "Nott'ham Forest", odds$HomeTeam))))))
+# Teams Names
+# setdiff(unique(odds$Home), unique(matches_all$Home))
+# setdiff(unique(matches_all$Home), unique(odds$Home))
+rename_teams <- c(
+  "Man United"    = "Manchester United",
+  "Man City"      = "Manchester City",
+  "Newcastle"     = "Newcastle United",
+  "Leicester"     = "Leicester City",
+  "West Ham"      = "West Ham United",
+  "Brighton"      = "Brighton & Hove Albion",
+  "Tottenham"     = "Tottenham Hotspur",
+  "Wolves"        = "Wolverhampton Wanderers",
+  "Ipswich"       = "Ipswich Town",
+  "Nott'm Forest" = "Nottingham Forest",
+  
+  "Ath Bilbao"    = "Athletic Club",
+  "Ath Madrid"    = "Atlético Madrid",
+  "Sociedad"      = "Real Sociedad",
+  "Betis"         = "Real Betis",
+  "Celta"         = "Celta Vigo",
+  "Vallecano"     = "Rayo Vallecano",
+  "Espanol"       = "Espanyol",
+  "Leganes"       = "Leganés",
+  "Alaves"        = "Alavés",
+  
+  "Inter"         = "Internazionale",
+  "Verona"        = "Hellas Verona"
+)
 
-odds$AwayTeam = ifelse(odds$AwayTeam == 'Leeds', 'Leeds United',
-                       ifelse(odds$AwayTeam == 'Newcastle', 'Newcastle Utd',
-                              ifelse(odds$AwayTeam == 'Leicester', 'Leicester City',
-                                     ifelse(odds$AwayTeam == 'Man United', 'Manchester Utd', 
-                                            ifelse(odds$AwayTeam == 'Man City', 'Manchester City',
-                                                   ifelse(odds$AwayTeam == "Nott'm Forest", "Nott'ham Forest", odds$AwayTeam))))))
+################################
+#_______     ODDS    _______#
+################################
 
+# https://www.football-data.co.uk/italym.php
 
-# Médias e Probs Implicita
-odds <- odds %>%
-  mutate(OddH = rowMeans(select(., starts_with("B365H"), starts_with("BWH"), starts_with("IWH"), starts_with("PSH"), starts_with("WHH"), starts_with("VCH"))),
-         OddE = rowMeans(select(., starts_with("B365D"), starts_with("BWD"), starts_with("IWD"), starts_with("PSD"), starts_with("WDD"), starts_with("VCD"))),
-         OddA = rowMeans(select(., starts_with("B365A"), starts_with("BWA"), starts_with("IWA"), starts_with("PSA"), starts_with("WAA"), starts_with("VCA")))
+# ODDS
+odds_ENG <- read_csv("dados\\odds\\ENG2425.csv") %>% mutate(League = "ENG")
+odds_ESP <- read_csv("dados\\odds\\ESP2425.csv") %>% mutate(League = "ESP")
+odds_ITA <- read_csv("dados\\odds\\ITA2425.csv") %>% mutate(League = "ITA")
+
+odds <- bind_rows(odds_ENG, odds_ESP, odds_ITA) %>%
+  select(
+    League, Date,
+    Home = HomeTeam,
+    Away = AwayTeam,
+    
+    # 1XBet
+    any_of(c("1XBH","1XBD","1XBA")),
+    
+    # Bet365
+    any_of(c("B365H","B365D","B365A")),
+    
+    # Betfair
+    any_of(c("BFH","BFD","BFA")),
+    
+    # Betfred
+    any_of(c("BFDH","BFDD","BFDA")),
+    
+    # BetMGM
+    any_of(c("BMGMH","BMGMD","BMGMA")),
+    
+    # BetVictor
+    any_of(c("BVH","BVD","BVA")),
+    
+    # Blue Square
+    any_of(c("BSH","BSD","BSA")),
+    
+    # Bet&Win
+    any_of(c("BWH","BWD","BWA")),
+    
+    # Coral
+    any_of(c("CLH","CLD","CLA")),
+    
+    # Gamebookers
+    any_of(c("GBH","GBD","GBA")),
+    
+    # Interwetten
+    any_of(c("IWH","IWD","IWA")),
+    
+    # Ladbrokes
+    any_of(c("LBH","LBD","LBA")),
+    
+    # Pinnacle
+    any_of(c("PSH","PSD","PSA","PH","PD","PA")),
+    
+    # Sporting Odds
+    any_of(c("SOH","SOD","SOA")),
+    
+    # Sportingbet
+    any_of(c("SBH","SBD","SBA")),
+    
+    # Stan James
+    any_of(c("SJH","SJD","SJA")),
+    
+    # Stanleybet
+    any_of(c("SYH","SYD","SYA")),
+    
+    # VC Bet
+    any_of(c("VCH","VCD","VCA")),
+    
+    # William Hill
+    any_of(c("WHH","WHD","WHA"))
   ) %>%
   mutate(
-    ProbH = OddH^(-1),
-    ProbE = OddE^(-1),
-    ProbA = OddA^(-1)
+    Date = as.Date(Date, format = "%d/%m/%Y"),
+    Home = recode(Home, !!!rename_teams),
+    Away = recode(Away, !!!rename_teams)
+  )
+
+odds_final <- odds %>%
+  rowwise() %>%
+  mutate(
+    OddH = median(c_across(ends_with("H")), na.rm = TRUE),
+    OddD = median(c_across(ends_with("D")), na.rm = TRUE),
+    OddA = median(c_across(ends_with("A")), na.rm = TRUE),
+    
+    ProbH = 1 / OddH,
+    ProbD = 1 / OddD,
+    ProbA = 1 / OddA,
+    Sum = ProbH + ProbD + ProbA
   ) %>%
-  select(Date, HomeTeam, AwayTeam, OddH, OddE, OddA, ProbH, ProbE, ProbA)
+  ungroup() %>%
+  select(League, Date, Home, Away, OddH, OddD, OddA, ProbH, ProbD, ProbA, Sum) %>%
+  left_join(select(matches_all, League, Date, Home, Away, cluster), 
+            by = c("League", "Date", "Home", "Away")) %>%
+  filter(!is.na(cluster))
 
-  
-# Probs
-probs_mix_cop = data.frame()
 
-wks = c(24, 25, 26, 27, 28, 29, 
-        30, 31, 32, 33, 34, 35, 36, 37, 38)
+##################################
+#_______   PROBS  _______#
+##################################
 
-for (i in 1:length(probs_rodada)){
+cols = c("Date","Home","Away")
+df_probs <- matches_all
+
+# Dixon-Coles
+files_dc <- list.files("models", pattern = "_dc\\.qs2$", full.names = TRUE)
+aux_probs = data.frame()
+for(f in files_dc){
+  name <- str_remove(basename(f), "\\.qs2$")
+  cat("Loading:", name, "\n")
+  tmp <- qs_read(f)
+  tmp <- tmp %>%
+    rename_with(~ paste0(.x, "_dc"), -all_of(cols))
+  aux_probs = rbind(aux_probs, tmp)
+  rm(tmp)
+  gc()
+}
+df_probs <- df_probs %>% 
+  left_join(aux_probs, by = cols) %>% 
+  mutate(
+    result_dc = case_when(
+      PH_dc > pmax(PA_dc, PD_dc) ~ "H",
+      PA_dc > pmax(PH_dc, PD_dc) ~ "A",
+      PD_dc > pmax(PH_dc, PA_dc) ~ "D",
+      T ~ NA
+    )
+  )
+
+# Models Choosed
+files_list <- list.files(
+  "models",
+  pattern = "\\.qs2$",
+  full.names = TRUE
+)
+files_list <- files_list[str_detect(files_list, "dummies2_NEWCOP")]
+# files_list <- files_list[!str_detect(files_list, "matches|_dc|_bivpois")]
+
+aux_probs = data.frame()
+aux_info = data.frame()
+aux_copulas = data.frame()
+
+for(f in files_list){
   
-  probs <- probs_rodada[[i]]
+  file <- basename(f) |> str_remove("\\.qs2$")
+  type <- str_remove(file, "^[A-Z]+_")
+  cat("Loading:", file, "->", type, "\n")
+  models <- qs_read(f)
   
-  # Probs
-  probs_mix_cop = rbind(probs_mix_cop, probs$Mix[[2]][c('M', 'GM', 'GV', 'V', 'pVM', 'pE', 'pVV')])
+  # IND
+  tmp_ind <- map_dfr(models, ~ .x$prob_ind) %>%
+    mutate(
+      model = type,
+      method = "ind"
+    )
   
+  # COP
+  tmp_cop <- map_dfr(models, ~ .x$prob_cop) %>%
+    mutate(
+      model = type,
+      method = "cop"
+    )
+  
+  aux_probs <- rbind(aux_probs, tmp_ind, tmp_cop)
+  
+  # p + q + link
+  tmp_list <- vector("list", length = 0)
+  idx <- 1
+  
+  for(k in seq_along(models)){
+    
+    x <- models[[k]]
+    # cat(paste0("\n", k))
+    mods <- x$models
+    
+    for(i in seq_along(mods)){
+      
+      mod <- mods[[i]]
+      cf  <- coef(mod)
+      key <- paste0(
+        paste(names(cf), collapse="|"),
+        "::",
+        paste(round(unname(cf), 8), collapse="|")
+      )
+      
+      tmp_list[[idx]] <- list(
+        model = type,
+        key   = key,
+        q     = max(mod$model$past_obs),
+        p     = ifelse(length(mod$model$past_obs) == 0, 0, max(mod$model$past_mean)),
+        link  = mod$link
+      )
+      
+      idx <- idx + 1
+    }
+  }
+  
+  tmp_info <- bind_rows(tmp_list) %>% 
+    distinct(key, .keep_all = TRUE) %>% 
+    select(-key) %>% 
+    mutate(
+      across(
+        where(is.numeric),
+        ~ replace(.x, is.infinite(.x), 0)
+      )
+    )
+  aux_info <- rbind(aux_info, tmp_info)
+  
+  # Copulas
+  tmp_copulas <- map_dfr(models, function(x){
+    tibble(
+      Date  = x$prob_ind$Date[1],
+      Home  = x$prob_ind$Home[1],
+      Away  = x$prob_ind$Away[1],
+      copula = x$copula,
+      model  = type
+    )
+  })
+  aux_copulas <- rbind(aux_copulas, tmp_copulas)
+  
+  rm(models, tmp_ind, tmp_cop, tmp_list, tmp_info, tmp_copulas)
+  gc()
 }
 
-probs_mix_cop
+# Result
+aux_probs_wide <- aux_probs %>%
+  # mutate(result = c("H","D","A")[max.col(cbind(PH, PD, PA))])  %>%
+  pivot_wider(
+    names_from = c(model, method),
+    values_from = c(PH, PD, PA),
+    names_glue = "{.value}_{model}_{method}"
+  )
+
+df_probs <- df_probs %>% left_join(aux_probs_wide, by = cols)
 
 
-# --------------------------------------#
-#         MERGE         #
-# --------------------------------------#
+##################################
+#_______   BETS  _______#
+##################################
 
 bet <- merge(probs_mix_cop, odds, by.x = c('M', 'V'), by.y = c('HomeTeam', 'AwayTeam'))
 bet <- bet %>%
